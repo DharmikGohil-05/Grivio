@@ -12,6 +12,9 @@ exports.healthCheck = async (req, res) => {
     // DB may simply not be configured yet; the API still reports itself.
   }
 
+  // Always 200: this endpoint reports API liveness; the `database` field
+  // carries the real database state, and a briefly unreachable DB is
+  // information, not an API failure.
   res.status(200).json({
     success: true,
     message: 'Grivio API is running',

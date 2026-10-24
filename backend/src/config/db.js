@@ -6,7 +6,12 @@ const config = require('./env');
 
 // A single pool is shared across the app. Render/Postgres work best with
 // pooled connections instead of opening a new client per request.
+// The pool is also lazy: constructing it does NOT contact the database,
+// so a down DB only fails when a query runs (or checkConnection is used),
+// never when this module is imported.
 const pool = new Pool({
+  // `undefined` (not an empty string) lets the pg driver fall back to its
+  // own defaults when DATABASE_URL is unset; an empty string is invalid.
   connectionString: config.databaseUrl || undefined,
   // Render managed Postgres requires SSL; local dev does not.
   ssl: config.databaseUrl && config.databaseUrl.includes('render.com')

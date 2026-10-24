@@ -22,6 +22,7 @@ async function getProgress(userId, range) {
     throw err;
   }
 
+  // Range → cutoff timestamp: 86400000 ms = one day of history.
   const since = new Date(Date.now() - days * 86400000);
 
   // Summary metrics — single pass per metric, all parameterized.
@@ -37,6 +38,8 @@ async function getProgress(userId, range) {
   );
 
   // Trend bucketing: daily for week/month, weekly for 3 months.
+  // 90 daily points would crowd the chart, so the longer range rolls up
+  // by week (date_trunc) instead.
   const bucket = days > 30 ? 'week' : 'day';
   const taskTrendPromise = query(
     `SELECT date_trunc('${bucket}', completed_at) AS bucket, COUNT(*)::int AS count
@@ -60,12 +63,18 @@ async function getProgress(userId, range) {
     [userId]
   );
 
+  // All four queries are independent, so Promise.all runs them
+  // concurrently — one network round-trip each, all at once, instead of
+  // waiting for them one after another.
   const [summaryRes, taskTrendRes, focusTrendRes, goalsRes] = await Promise.all([
     summaryPromise, taskTrendPromise, focusTrendPromise, goalsPromise,
   ]);
 
   const s = summaryRes.rows[0];
   const focusMinutes = Math.round(s.focus_seconds / 60);
+  // tasks_total (created or completed in the window, cancelled excluded)
+  // is the denominator of the rate; the ternary avoids dividing by zero
+  // when the window contains no tasks.
   const completionRate = s.tasks_total === 0 ? 0 : Math.round((100.0 * s.tasks_completed) / s.tasks_total);
 
   // Factual, data-backed insights only — no motivation fluff.

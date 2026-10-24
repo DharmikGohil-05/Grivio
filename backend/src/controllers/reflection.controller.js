@@ -1,6 +1,9 @@
 // Reflection controller — daily reflection CRUD (Phase 10).
 const reflectionService = require('../services/reflection.service');
 
+// Shared error responder: err.statusCode (set by services for expected
+// problems) becomes the HTTP status; anything else is treated as an
+// unexpected bug and reported as a generic 500 so internals never leak.
 function errJson(res, err) {
   return res.status(err.statusCode || 500).json({ success: false, message: err.statusCode ? err.message : 'Server error' });
 }
@@ -21,6 +24,8 @@ exports.getByDate = async (req, res) => {
 exports.upsert = async (req, res) => {
   try {
     const body = req.body ?? {};
+    // Defaults to today (UTC date via toISOString) when the client sends
+    // no date, so "log today's reflection" needs no extra work.
     const date = body.date || new Date().toISOString().substring(0, 10);
     if (isNaN(Date.parse(date))) {
       return res.status(400).json({ success: false, message: 'Invalid date' });

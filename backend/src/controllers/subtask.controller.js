@@ -1,6 +1,9 @@
 // Subtask controller — thin HTTP layer over subtask.service.
 const subtaskService = require('../services/subtask.service');
 
+// Shared error responder: err.statusCode (set by services for expected
+// problems) becomes the HTTP status; anything else is treated as an
+// unexpected bug and reported as a generic 500 so internals never leak.
 function errJson(res, err) {
   return res.status(err.statusCode || 500).json({ success: false, message: err.statusCode ? err.message : 'Server error' });
 }

@@ -2,6 +2,9 @@
 const goalService = require('../services/goal.service');
 const { validateGoalInput } = require('../utils/goalValidate');
 
+// Shared error responder: err.statusCode (set by services for expected
+// problems) becomes the HTTP status; anything else is treated as an
+// unexpected bug and reported as a generic 500 so internals never leak.
 function errJson(res, err) {
   return res
     .status(err.statusCode || 500)
@@ -41,6 +44,9 @@ exports.create = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
+    // Updates are partial, so only name/status are type-checked here —
+    // the other columns are optional free text. The service ignores any
+    // field that was not sent (COALESCE keeps the stored value).
     if (req.body.name !== undefined && (typeof req.body.name !== 'string' || !req.body.name.trim())) {
       return res.status(400).json({ success: false, message: 'Name cannot be empty' });
     }

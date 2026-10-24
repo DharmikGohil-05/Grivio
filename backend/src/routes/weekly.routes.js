@@ -1,4 +1,5 @@
 // Weekly review routes — all JWT-protected; weekStart is a Monday date.
+// Ownership is enforced server-side: services filter by req.userId.
 const express = require('express');
 const router = express.Router();
 const weeklyController = require('../controllers/weekly.controller');

@@ -1,4 +1,11 @@
-// Phase 3 backend smoke test — hits every auth requirement over HTTP.
+// Auth smoke test — boots the real Express app on its OWN test port (5055,
+// not the normal 5000) so it can run while a dev server is up. Requires a
+// reachable database (the first check asserts database === 'connected').
+// Covers the whole auth surface: register (valid / duplicate email /
+// invalid email / weak password), login (correct / wrong password),
+// GET /auth/me with missing / valid / invalid / expired tokens, and that
+// the DB stores a bcrypt hash rather than plaintext. Creates one throwaway
+// user with a timestamped email address; nothing else is modified.
 require('dotenv').config();
 const app = require('../src/app');
 

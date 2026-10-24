@@ -2,6 +2,9 @@
 const milestoneService = require('../services/milestone.service');
 const { validateMilestoneInput } = require('../utils/goalValidate');
 
+// Shared error responder: err.statusCode (set by services for expected
+// problems) becomes the HTTP status; anything else is treated as an
+// unexpected bug and reported as a generic 500 so internals never leak.
 function errJson(res, err) {
   return res
     .status(err.statusCode || 500)
@@ -32,6 +35,8 @@ exports.create = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
+    // Statuses mirror the milestone CHECK constraint in migrations/001, so
+    // a bad value gets a clean 400 instead of a SQL error.
     if (req.body.status !== undefined && !['pending', 'in_progress', 'completed'].includes(req.body.status)) {
       return res.status(400).json({ success: false, message: 'Invalid status' });
     }

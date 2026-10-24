@@ -16,6 +16,10 @@ module.exports = function authMiddleware(req, res, next) {
   }
 
   // Attach the user id so controllers/services can trust the caller's identity.
+  // Identity ALWAYS comes from the verified token — never from the request
+  // body, query string, or headers, which are attacker-controlled. Every
+  // service query filters by this id, which is what stops one user from
+  // reading or changing another user's records (the authorization boundary).
   req.userId = payload.sub;
   next();
 };

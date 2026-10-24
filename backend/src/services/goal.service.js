@@ -17,6 +17,8 @@ async function listGoals(userId, statusFilter) {
             COUNT(m.id)::int AS milestone_count,
             COUNT(m.id) FILTER (WHERE m.status = 'completed')::int AS completed_milestones
      FROM goals g
+     -- LEFT JOIN (not JOIN): goals with zero milestones still appear,
+     -- with their counts at 0 instead of vanishing from the list.
      LEFT JOIN milestones m ON m.goal_id = g.id
      WHERE ${where}
      GROUP BY g.id
@@ -94,6 +96,8 @@ async function deleteGoal(userId, goalId) {
 
 // Recompute a goal's progress from its milestones and persist it.
 // progress = completed milestones / total milestones (0 if none).
+// NULLIF guards the division: a goal with no milestones yields NULL (then
+// 0 via COALESCE) instead of a divide-by-zero SQL error.
 async function recalculateProgress(goalId) {
   const result = await query(
     `UPDATE goals g SET

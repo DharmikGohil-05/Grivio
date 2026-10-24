@@ -33,6 +33,9 @@ async function startSession(userId, taskId) {
   return r.rows[0];
 }
 
+// 409 Conflict means "valid request, wrong state": only an active session
+// can be paused, resumed, completed, or cancelled — finished sessions are
+// immutable history so the recorded duration can never change.
 async function pauseSession(userId, id) {
   const s = await _getOwned(userId, id);
   if (s.status !== 'active') { const e = new Error('Only active sessions can be paused'); e.statusCode = 409; throw e; }
@@ -46,6 +49,8 @@ async function resumeSession(userId, id) {
   if (s.status !== 'active') { const e = new Error('Only active sessions can be resumed'); e.statusCode = 409; throw e; }
   if (!s.paused_at) return s;
   const r = await query(
+    // Accumulate the pause that just ended into the running total (server
+    // clock vs paused_at), then clear paused_at so the session runs again.
     `UPDATE focus_sessions
      SET total_pause_seconds = total_pause_seconds + EXTRACT(EPOCH FROM (NOW() - paused_at))::int,
          paused_at = NULL
@@ -57,6 +62,10 @@ async function resumeSession(userId, id) {
 
 // Elapsed focus seconds for a session, excluding paused time. Shared by
 // complete/cancel so duration is consistent.
+// Math: (end - started) minus every paused interval. Pauses already
+// finished are in total_pause_seconds; if the session is paused RIGHT
+// NOW, that open interval (paused_at → end) is subtracted too.
+// Math.max(0) guards against clock skew producing a negative duration.
 function _elapsedSeconds(s, endTs) {
   const started = new Date(s.started_at).getTime();
   const end = new Date(endTs).getTime();
@@ -69,8 +78,13 @@ async function completeSession(userId, id, { rating, reflection } = {}) {
   const s = await _getOwned(userId, id);
   if (s.status !== 'active') { const e = new Error('Session already finished'); e.statusCode = 409; throw e; }
   const end = new Date();
+  // The end timestamp comes from the SERVER clock, never from the client,
+  // so focus time cannot be faked by sending a custom end time.
   const duration = _elapsedSeconds(s, end);
   const r = await query(
+    // If the session happened to be paused at completion, that final open
+    // pause segment is folded into total_pause_seconds (the CASE WHEN)
+    // before paused_at is cleared, keeping the stored pause total accurate.
     `UPDATE focus_sessions
      SET status = 'completed', ended_at = $2, duration_seconds = $3,
          productivity_rating = COALESCE($4, productivity_rating),
@@ -94,6 +108,9 @@ async function cancelSession(userId, id) {
   return r.rows[0];
 }
 
+// Sessions live in the database, so a client that restarts (phone killed,
+// app crash) can re-fetch this list, find its 'active' session, and carry
+// on pausing/resuming/completing it — the lifecycle survives the UI.
 async function listSessions(userId) {
   const r = await query(
     `SELECT fs.*, t.title AS task_title

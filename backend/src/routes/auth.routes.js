@@ -2,6 +2,8 @@
 //   POST /api/auth/register  — create account
 //   POST /api/auth/login     — issue JWT
 //   GET  /api/auth/me        — current user (protected)
+// Only /me needs authMiddleware; register/login/logout are public by
+// design. Ownership is still enforced server-side via req.userId everywhere.
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');

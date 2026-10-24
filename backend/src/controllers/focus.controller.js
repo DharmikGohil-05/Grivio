@@ -1,12 +1,18 @@
 // Focus session controller — thin HTTP layer over focus.service.
 const focusService = require('../services/focus.service');
 
+// Shared error responder: err.statusCode (set by services for expected
+// problems) becomes the HTTP status; anything else is treated as an
+// unexpected bug and reported as a generic 500 so internals never leak.
 function errJson(res, err) {
   return res.status(err.statusCode || 500).json({ success: false, message: err.statusCode ? err.message : 'Server error' });
 }
 
 exports.start = async (req, res) => {
   try {
+    // snake_case keys (task_id) are the API contract with the Flutter
+    // client for this endpoint — note they differ from the camelCase used
+    // by most other endpoints.
     const session = await focusService.startSession(req.userId, req.body?.task_id ?? null);
     return res.status(201).json({ success: true, message: 'Session started', session });
   } catch (err) { return errJson(res, err); }

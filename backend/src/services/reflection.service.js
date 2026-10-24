@@ -11,6 +11,9 @@ async function getReflectionByDate(userId, date) {
 }
 
 // Upsert on (user_id, reflection_date) — one daily reflection per user.
+// ON CONFLICT only works because of the UNIQUE (user_id, reflection_date)
+// constraint added in migrations/006, making "one per day" a database
+// guarantee rather than just application logic.
 async function upsertReflection(userId, { date, wentWell, wasDifficult, toImprove }) {
   const r = await query(
     `INSERT INTO reflections (user_id, reflection_date, went_well, was_difficult, to_improve)

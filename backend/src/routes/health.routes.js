@@ -1,3 +1,5 @@
+// Health route — deliberately PUBLIC (no authMiddleware) so uptime
+// monitors and developers can probe the API without credentials.
 const express = require('express');
 const router = express.Router();
 

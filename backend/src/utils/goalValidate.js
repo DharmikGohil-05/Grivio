@@ -2,6 +2,9 @@
 // status/priority-style fields so only safe strings reach the DB.
 
 const GOAL_STATUSES = ['active', 'completed', 'archived'];
+// The API exposes a subset of the DB's allowed values: the goals CHECK
+// constraint (migrations/001) also permits 'paused', but no endpoint ever
+// sets it, so it cannot reach the database.
 const MILESTONE_STATUSES = ['pending', 'in_progress', 'completed'];
 
 function validateGoalInput(body) {

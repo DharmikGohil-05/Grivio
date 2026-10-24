@@ -1,6 +1,11 @@
 // Migration runner.
 // Applies every .sql file in /migrations in filename order and records
 // applied migrations in a schema_migrations table so each runs once.
+// Sorting by filename matters: the numeric prefixes (001_, 002_, ...)
+// define the order, and later migrations assume earlier ones already ran.
+// Uses the same pool/DATABASE_URL as the app. A failure is printed and the
+// process exits with code 1, so a deploy script or CI stops instead of
+// continuing with a half-migrated database.
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');

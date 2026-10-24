@@ -7,14 +7,21 @@ const { validateRegisterInput, validateLoginInput } = require('../utils/validate
 // POST /api/auth/register
 exports.register = async (req, res) => {
   try {
+    // ?? {} so validation sees an object even when the client sent no body.
     const errors = validateRegisterInput(req.body ?? {});
     if (errors.length) {
+      // All problems joined into one message so the user fixes everything
+      // in one go instead of one error per submit.
       return res.status(400).json({ success: false, message: errors.join('. ') });
     }
 
     const { user, token } = await authService.register(req.body);
     return res.status(201).json({ success: true, message: 'Account created', user, token });
   } catch (err) {
+    // Services mark expected failures with statusCode + a safe message
+    // (e.g. 409 for a duplicate email). Errors WITHOUT a statusCode are
+    // unexpected bugs, so the real message stays in the server log and the
+    // client only sees a generic 'Server error'.
     return res
       .status(err.statusCode || 500)
       .json({ success: false, message: err.statusCode ? err.message : 'Server error' });

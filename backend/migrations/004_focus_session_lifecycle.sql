@@ -3,6 +3,10 @@
 -- duration_seconds/rating/reflection but no status and no pause tracking.
 -- These columns keep a single session accurate across pause/resume and
 -- app restarts without inventing new fields.
+-- NOT NULL DEFAULT backfills rows that already exist, so sessions
+-- recorded before this migration are treated as already 'completed'.
+-- paused_at marks the start of the CURRENT pause (null when running);
+-- total_pause_seconds accumulates the ENDED pauses for the duration math.
 ALTER TABLE focus_sessions
   ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'completed';
 

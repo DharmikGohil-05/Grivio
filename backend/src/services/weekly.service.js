@@ -11,6 +11,10 @@ function _notFound() {
 }
 
 // Validates 'YYYY-MM-DD' and that it is a Monday.
+// weekStart MUST be a Monday because every weekly stat is a fixed
+// [Monday, next Monday) window keyed by that date, and the DB enforces
+// UNIQUE (user_id, week_start) — any other date would create duplicate,
+// overlapping "weeks" for the same user.
 function _validateWeekStart(weekStart) {
   const d = new Date(weekStart);
   if (isNaN(d.getTime())) throw invalid('Invalid weekStart date');
@@ -29,6 +33,8 @@ function _addDays(d, n) {
 }
 
 // Aggregates real activity for [weekStart, weekEnd).
+// The window is half-open: >= start and < end, so an activity landing
+// exactly at the Monday-midnight boundary counts once, never twice.
 async function weekStats(userId, weekStart) {
   const start = _validateWeekStart(weekStart);
   const end = _addDays(start, 7);
@@ -74,6 +80,9 @@ async function listReviews(userId) {
 }
 
 // Upsert on (user_id, week_start) — one review per week per user.
+// ON CONFLICT ... DO UPDATE relies on the UNIQUE (user_id, week_start)
+// constraint from migrations/005: saving the same week again rewrites it
+// instead of inserting a duplicate row.
 async function upsertReview(userId, { weekStart, biggestWin, needsAttention, nextWeekFocus, summary }) {
   const start = _validateWeekStart(weekStart);
   const end = _addDays(start, 6);

@@ -1,6 +1,15 @@
 -- Grivio initial schema (Phase 2).
 -- Creates all core tables with relationships, constraints and indexes.
 -- No seed/fake data is inserted.
+--
+-- pgcrypto provides gen_random_uuid() for the UUID primary keys.
+-- Deletion policy: most children use ON DELETE CASCADE (delete a user and
+-- their goals/sessions/reflections go too), but task.goal_id,
+-- task.milestone_id and focus_sessions.task_id use ON DELETE SET NULL so
+-- removing a goal or task keeps the rows that referenced it.
+-- The CHECK constraints are a second line of defense: even if the app's
+-- validation were bypassed, the database itself rejects invalid
+-- statuses/priorities/progress values.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 

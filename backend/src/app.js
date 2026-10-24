@@ -1,3 +1,6 @@
+// Express app assembly. This file does NOT call listen() — server.js
+// owns the port — so tests can import the same app and bind it to a
+// different (test) port.
 const express = require('express');
 const cors = require('cors');
 
@@ -16,11 +19,18 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
+// Middleware order matters:
+// 1) express.json() first so every route below sees a parsed req.body.
+// 2) cors() next so CORS headers are attached to every response,
+//    including error responses.
 app.use(express.json());
 
 // Permissive for local Flutter development; tighten for production (Phase 16).
 app.use(cors());
 
+// Health is public; every other router applies authMiddleware per-route.
+// Note: goal/task/focus/... routers define their own full paths
+// (e.g. /goals), which is why they mount directly on '/api'.
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
@@ -31,6 +41,10 @@ app.use('/api', progressRoutes);
 app.use('/api', weeklyRoutes);
 app.use('/api', reflectionRoutes);
 app.use('/api', aiRoutes);
+// notFound must come AFTER every route: anything not matched above falls
+// through to it and still returns the standard JSON envelope.
+// errorHandler goes LAST: Express only runs 4-argument error middleware
+// when next(err) is called, and only from handlers registered before it.
 app.use(notFound);
 app.use(errorHandler);
 

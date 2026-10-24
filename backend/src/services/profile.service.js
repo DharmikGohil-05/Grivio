@@ -35,6 +35,10 @@ async function upsertProfile(userId, fields) {
     typeof fields.setupCompleted === 'boolean' ? fields.setupCompleted : undefined;
 
   const result = await query(
+    // COALESCE(new, old) keeps the stored value whenever the new one is
+    // null — and the checks above turn "field not sent" into null. That is
+    // what makes this a partial update: sending { name } alone leaves
+    // every other column untouched.
     `UPDATE profiles SET
        name                 = COALESCE($2, name),
        growth_areas         = COALESCE($3, growth_areas),

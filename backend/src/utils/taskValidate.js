@@ -2,6 +2,7 @@
 // service layer so a task can never be linked to someone else's data.
 
 const PRIORITIES = ['low', 'medium', 'high'];
+// Allowed statuses mirror the task status CHECK constraint (migrations/003).
 const TASK_STATUSES = ['pending', 'in_progress', 'completed', 'cancelled'];
 
 function validateTaskInput(body) {
@@ -20,6 +21,8 @@ function validateTaskInput(body) {
   }
   if (body.estimatedMinutes !== undefined && body.estimatedMinutes !== null) {
     const n = Number(body.estimatedMinutes);
+    // Upper bound (100000 minutes ≈ 69 days of work) stops absurd values
+    // from poisoning the focus/progress statistics later.
     if (!Number.isFinite(n) || n <= 0 || n > 100000) errors.push('Estimated duration must be a positive number');
   }
   if (body.dueDate !== undefined && body.dueDate !== null && isNaN(Date.parse(body.dueDate))) {

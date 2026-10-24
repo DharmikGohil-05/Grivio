@@ -1,5 +1,8 @@
 // Input validation for auth endpoints.
 // Keeps controller code clean and returns consistent, safe error messages.
+// Validation runs SERVER-SIDE because the mobile app is not the trust
+// boundary: anyone can call the API directly with curl, so the server
+// must reject bad input itself.
 
 // Basic RFC-style email sanity check.
 function isValidEmail(email) {

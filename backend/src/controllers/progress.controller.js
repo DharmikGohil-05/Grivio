@@ -9,6 +9,8 @@ exports.get = async (req, res) => {
     const data = await progressService.getProgress(req.userId, range);
     return res.status(200).json({ success: true, ...data });
   } catch (err) {
+    // Same convention as the other controllers: statusCode → HTTP status,
+    // anything else becomes a generic 500.
     return res.status(err.statusCode || 500).json({ success: false, message: err.statusCode ? err.message : 'Server error' });
   }
 };

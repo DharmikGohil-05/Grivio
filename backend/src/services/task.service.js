@@ -75,6 +75,8 @@ async function _assertLinks(userId, goalId, milestoneId) {
 async function createTask(userId, fields) {
   await _assertLinks(userId, fields.goalId ?? null, fields.milestoneId ?? null);
   const result = await query(
+    // COALESCE($7, 'medium'): a missing priority defaults to 'medium'
+    // right in SQL, matching the column default in the schema.
     `INSERT INTO tasks (user_id, goal_id, milestone_id, title, description, due_date, priority, estimated_minutes, category, status)
      VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'medium'), $8, $9, 'pending')
      RETURNING *`,
@@ -100,6 +102,8 @@ async function updateTask(userId, taskId, fields) {
   await _assertLinks(userId, fields.goalId ?? undefined, fields.milestoneId ?? undefined);
 
   const result = await query(
+    // completed_at is stamped only when this update sets status to
+    // 'completed'; every other partial update leaves the old timestamp as-is.
     `UPDATE tasks SET
        title = COALESCE($3, title),
        description = COALESCE($4, description),
@@ -124,6 +128,9 @@ async function updateTask(userId, taskId, fields) {
   return result.rows[0];
 }
 
+// Dedicated status endpoint: moving TO 'completed' stamps completed_at
+// with NOW(); moving AWAY from 'completed' clears it (ELSE NULL) so the
+// progress/weekly stats never count work that was un-completed.
 async function setTaskStatus(userId, taskId, status) {
   const result = await query(
     `UPDATE tasks SET status = $3::text,

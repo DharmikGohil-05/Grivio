@@ -1,4 +1,5 @@
-// Reflection routes — daily reflection, JWT-protected.
+// Reflection routes — daily reflection, JWT-protected; ownership is
+// enforced server-side: services filter by req.userId.
 const express = require('express');
 const router = express.Router();
 const reflectionController = require('../controllers/reflection.controller');

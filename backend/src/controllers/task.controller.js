@@ -2,6 +2,9 @@
 const taskService = require('../services/task.service');
 const { validateTaskInput } = require('../utils/taskValidate');
 
+// Shared error responder: err.statusCode (set by services for expected
+// problems) becomes the HTTP status; anything else is treated as an
+// unexpected bug and reported as a generic 500 so internals never leak.
 function errJson(res, err) {
   return res.status(err.statusCode || 500).json({ success: false, message: err.statusCode ? err.message : 'Server error' });
 }
@@ -48,6 +51,9 @@ exports.update = async (req, res) => {
 
 exports.setStatus = async (req, res) => {
   try {
+    // Statuses mirror the task CHECK constraint (migrations/003) so a bad
+    // value gets a clean 400 instead of a SQL error. The service decides
+    // what happens to completed_at based on the transition.
     const { status } = req.body ?? {};
     if (!['pending', 'in_progress', 'completed', 'cancelled'].includes(status)) {
       return res.status(400).json({ success: false, message: 'Invalid status' });
