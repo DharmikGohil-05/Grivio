@@ -37,6 +37,10 @@ function normalizeImprovement(raw) {
   const description = cleanString(raw?.description, MAX_DESCRIPTION_LENGTH);
   if (description) out.description = description;
 
+  // Invalid enum values are silently DROPPED rather than rejected: one
+  // bad field would otherwise fail the whole suggestion, and the preview
+  // is safer with a missing field than with an invalid one the client
+  // would have to filter itself.
   const category = cleanString(raw?.category, 50);
   if (category && VALID_CATEGORIES.includes(category)) out.category = category;
 
@@ -167,10 +171,14 @@ async function generateBreakdown(userId, { goalId, title, description, instructi
   let currentTitle = '';
   let currentDescription = '';
   if (goalId) {
+    // Ownership enforced inside getGoal (other users' goals fail here);
+    // the goal's "why it matters" note is folded in as extra context.
     const goal = await goalService.getGoal(userId, goalId);
     currentTitle = goal.name || '';
     currentDescription = [goal.description, goal.why_it_matters].filter(Boolean).join(' ');
   } else {
+    // No stored record referenced: the AI works purely from these bounded
+    // client-supplied fields, so no ownership lookup is needed.
     if (typeof title !== 'string' || !title.trim()) {
       throw aiError(400, 'A non-empty title is required');
     }

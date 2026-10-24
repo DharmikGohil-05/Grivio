@@ -1,6 +1,10 @@
 // Phase 11 AI smoke test — mocks the Groq HTTP call so no tokens are spent.
 // Covers: auth, validation, missing config, normalization, provider errors,
 // rate limits, timeouts, and secret-leak checks.
+//
+// The suite boots its OWN Express server on a dedicated port and drives it
+// over real HTTP, while global.fetch is swapped for a mock — so no real
+// Groq call is ever made and no API key/tokens are spent.
 require('dotenv').config();
 const app = require('../src/app');
 

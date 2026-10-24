@@ -4,6 +4,8 @@
 // never logged, returned, or exposed in errors.
 const config = require('../config/env');
 
+// Native fetch (built into Node 18+) is used deliberately: one outbound
+// HTTPS call doesn't justify adding an HTTP client dependency.
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_MODEL = 'openai/gpt-oss-120b';
 const REQUEST_TIMEOUT_MS = 30000; // 30s — generous but bounded
@@ -31,7 +33,11 @@ async function generateText(prompt, { systemPrompt, maxTokens = DEFAULT_MAX_TOKE
     throw aiError(503, 'AI service is not configured. Set GROQ_API_KEY on the backend.');
   }
 
+  // GROQ_MODEL (read via config) overrides the default model when set,
+  // so deployments can swap models without code changes.
   const model = config.groqModel || DEFAULT_MODEL;
+  // AbortController acts as a hard deadline: after 30s the pending fetch
+  // is cancelled, so a hung provider can't keep the request open forever.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -50,6 +56,8 @@ async function generateText(prompt, { systemPrompt, maxTokens = DEFAULT_MAX_TOKE
           ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
           { role: 'user', content: prompt },
         ],
+        // Low-ish temperature: productivity suggestions should be
+        // consistent and practical, not wildly creative.
         temperature: 0.4,
         max_completion_tokens: maxTokens,
       }),
@@ -65,9 +73,14 @@ async function generateText(prompt, { systemPrompt, maxTokens = DEFAULT_MAX_TOKE
   clearTimeout(timeout);
 
   // Map provider status codes to safe, consistent errors.
+  // 401/403 mean OUR key is wrong or revoked — a server-side config
+  // problem, so it is surfaced as 503 (service unavailable), never as a
+  // client error and never with provider details attached.
   if (response.status === 401 || response.status === 403) {
     throw aiError(503, 'AI service authentication failed. Contact support.');
   }
+  // Provider rate limits are passed through as 429 so the client can show
+  // an honest "wait a moment" state instead of a generic failure.
   if (response.status === 429) {
     throw aiError(429, 'AI rate limit reached. Please wait a moment and try again.');
   }
@@ -104,7 +117,11 @@ async function generateJson(prompt, { systemPrompt, maxTokens = DEFAULT_MAX_TOKE
     throw aiError(503, 'AI service is not configured. Set GROQ_API_KEY on the backend.');
   }
 
+  // GROQ_MODEL (read via config) overrides the default model when set,
+  // so deployments can swap models without code changes.
   const model = config.groqModel || DEFAULT_MODEL;
+  // AbortController acts as a hard deadline: after 30s the pending fetch
+  // is cancelled, so a hung provider can't keep the request open forever.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -123,8 +140,13 @@ async function generateJson(prompt, { systemPrompt, maxTokens = DEFAULT_MAX_TOKE
           ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
           { role: 'user', content: prompt },
         ],
+        // Low-ish temperature: productivity suggestions should be
+        // consistent and practical, not wildly creative.
         temperature: 0.4,
         max_completion_tokens: maxTokens,
+        // JSON mode asks the API to constrain output to valid JSON —
+        // this reduces but does not guarantee parseable replies, which
+        // is why the parsing below still fails safe with a 502.
         response_format: { type: 'json_object' },
       }),
     });
@@ -137,9 +159,14 @@ async function generateJson(prompt, { systemPrompt, maxTokens = DEFAULT_MAX_TOKE
   }
   clearTimeout(timeout);
 
+  // 401/403 mean OUR key is wrong or revoked — a server-side config
+  // problem, so it is surfaced as 503 (service unavailable), never as a
+  // client error and never with provider details attached.
   if (response.status === 401 || response.status === 403) {
     throw aiError(503, 'AI service authentication failed. Contact support.');
   }
+  // Provider rate limits are passed through as 429 so the client can show
+  // an honest "wait a moment" state instead of a generic failure.
   if (response.status === 429) {
     throw aiError(429, 'AI rate limit reached. Please wait a moment and try again.');
   }

@@ -60,6 +60,10 @@ async function gatherWeekData(userId, weekStart) {
   // User's own weekly reflection fields for that exact week (may be null).
   const review = await weeklyService.getReview(userId, weekStart);
 
+  // Every figure is computed here from this user's own rows (each
+  // subquery filters user_id = $1), and titles/reflection text are
+  // truncated in SQL so the prompt stays bounded no matter how much
+  // text exists in the database.
   const data = await query(
     `SELECT
        -- Tasks completed during the week (title, priority)
@@ -237,6 +241,8 @@ async function generateWeeklyReview(userId, body) {
     };
   }
 
+  // Whitelist of every number the server actually computed — the scrubber
+  // uses it to strip any sentence that cites any other figure.
   const allowed = allowedFigures(d);
 
   const systemPrompt =

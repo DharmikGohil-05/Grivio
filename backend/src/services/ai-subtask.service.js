@@ -44,6 +44,8 @@ function normalizeSuggestions(raw) {
 
     let estimatedMinutes = null;
     if (item?.estimatedMinutes != null) {
+      // Durations are sanity-bounded (5 min – 8 h): a nonsense estimate
+      // accepted here would silently corrupt the user's schedule preview.
       const n = Number(item.estimatedMinutes);
       if (!Number.isFinite(n) || n < 5 || n > 480) {
         throw aiError(502, 'AI returned an invalid subtask duration.');
@@ -84,6 +86,10 @@ async function generateSubtaskSuggestions(userId, { taskId, instructions }) {
     instructions ? `User instructions: ${instructions}` : null,
   ].filter(Boolean).join('\n');
 
+  // The system prompt demands bare JSON with no markdown fence or prose:
+  // this service parses the reply, so any chatter would surface as a 502.
+  // Its stated limits (3-10 items, 5-480 minutes) mirror the bounds that
+  // normalizeSuggestions enforces again on the actual output.
   const systemPrompt =
     'You are a precise productivity assistant. You break tasks into actionable, sequential subtasks. ' +
     'Respond with ONLY valid JSON in this exact shape: {"suggestions":[{"title":"...","description":"...","estimatedMinutes":25}]}. ' +
@@ -91,6 +97,9 @@ async function generateSubtaskSuggestions(userId, { taskId, instructions }) {
     'description is one helpful sentence (optional); estimatedMinutes is a number between 5 and 480 (optional). ' +
     'No markdown, no commentary, no extra keys.';
 
+  // The prompt contains only the requesting user's own task (loaded with
+  // ownership checks above) plus their optional instructions — nothing
+  // else about the user base ever reaches the model.
   const userPrompt = `${context}\n\nGenerate the subtasks JSON now.`;
 
   const parsed = await groqService.generateJson(userPrompt, {

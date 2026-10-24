@@ -5,6 +5,12 @@ const groqService = require('../services/groq.service');
 
 const MAX_PROMPT_LENGTH = 2000; // bound input so the endpoint can't be abused
 
+// Services signal expected failures with err.statusCode carrying a safe,
+// user-appropriate message; an error without one is treated as a bug and
+// returned as a generic 500 so internals never leak to the client.
+// Shared error responder: err.statusCode (set by services for expected
+// problems) becomes the HTTP status; anything else — including provider
+// failures from Groq — is reported as a generic 500 so internals never leak.
 function errJson(res, err) {
   return res
     .status(err.statusCode || 500)
@@ -45,6 +51,9 @@ exports.generateSubtasks = async (req, res) => {
       return res.status(400).json({ success: false, message: 'instructions must be text' });
     }
 
+    // Ownership starts here: req.userId is set by authMiddleware from the
+    // JWT and is never taken from the body, so users can only generate
+    // suggestions for their own tasks.
     const suggestions = await aiSubtaskService.generateSubtaskSuggestions(req.userId, {
       taskId: taskId.trim(),
       instructions: instructions?.trim() || null,

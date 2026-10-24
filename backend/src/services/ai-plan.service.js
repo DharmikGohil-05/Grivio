@@ -72,6 +72,8 @@ function validateRequest(body) {
     throw aiError(400, `breakMinutes must be an integer between 0 and ${MAX_BREAK_MINUTES}`);
   }
 
+  // Free-text context is used ONLY to steer this one prompt and to build
+  // warnings — it is validated here and never persisted to the database.
   let dailyContext = body.dailyContext;
   if (dailyContext === undefined || dailyContext === null) dailyContext = '';
   if (typeof dailyContext !== 'string') throw aiError(400, 'dailyContext must be plain text');
@@ -168,6 +170,8 @@ function normalizePlan(raw, eligible, ctx) {
     throw aiError(502, 'AI returned a malformed schedule. Please try again.');
   }
 
+  // Whitelist of this user's own tasks — the only IDs the model's output
+  // can resolve against; invented or foreign IDs simply won't match.
   const byId = new Map(eligible.map((t) => [t.id, t]));
   const scheduled = []; // { task, start, end, minutes, isFallback }
   const unscheduled = []; // { task, reason }
@@ -314,6 +318,9 @@ async function generateDailyPlan(userId, body) {
     };
   }
 
+  // The window and capacity numbers injected below come from server-side
+  // validation (validateRequest), so the model can only ever plan within
+  // bounds the backend itself computed — never numbers the client claims.
   const systemPrompt =
     'You are GRIVIO\'s daily planner. Arrange the user\'s real tasks into a realistic schedule. ' +
     'Respond with ONLY valid JSON: {"schedule":[{"taskId":"...","start":"HH:MM","minutes":30}],' +
