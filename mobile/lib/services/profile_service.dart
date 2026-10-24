@@ -21,6 +21,9 @@ class UserProfile {
     required this.setupCompleted,
   });
 
+  /// Maps the backend's snake_case profile JSON to camelCase fields, with
+  /// sensible defaults for anything missing (empty name, empty growth-area
+  /// list, setup not completed) so a partial payload can never crash the UI.
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
     name: json['name'] as String? ?? '',
     profilePicture: json['profile_picture'] as String?,
@@ -41,6 +44,8 @@ class ProfileService {
   final ApiClient _client;
   final AuthStorage _storage;
 
+  /// Reads the profile. Like every endpoint, the payload is wrapped, so the
+  /// actual object always lives under the 'profile' key of the response.
   Future<UserProfile> getProfile() async {
     final token = await _storage.getToken();
     final res = await _client.get('/profile', token: token);
@@ -53,7 +58,9 @@ class ProfileService {
     return UserProfile.fromJson(res['profile'] as Map<String, dynamic>);
   }
 
-  /// Returns today's reflection if the user saved one (Phase 10).
+  /// Returns today's reflection if the user saved one (Phase 10), or null
+  /// when today has none. The query date is the device's local calendar day
+  /// (yyyy-MM-dd), matching how the backend groups reflections per day.
   Future<Map<String, dynamic>?> getTodayReflection() async {
     final token = await _storage.getToken();
     final res = await _client.get(

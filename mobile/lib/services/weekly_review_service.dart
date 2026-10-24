@@ -2,6 +2,10 @@ import 'api_client.dart';
 import 'auth_storage.dart';
 
 /// Weekly review models — mirrors the backend weekly review API.
+///
+/// The API is Monday-based: `weekStart` is the Monday of the week as a
+/// yyyy-MM-dd string (the backend rejects any other day of the week), and
+/// `weekEnd` is that Monday plus six days — the Sunday.
 class WeeklyStats {
   final String weekStart;
   final String weekEnd;
@@ -23,6 +27,8 @@ class WeeklyStats {
     required this.completionRate,
     this.tasksTotal = 0,
   });
+  /// Note the key casing: this stats endpoint answers in camelCase, while
+  /// review rows come back snake_case (see WeeklyReview.fromJson below).
   factory WeeklyStats.fromJson(Map<String, dynamic> j) => WeeklyStats(
     weekStart: j['weekStart'] as String,
     weekEnd: j['weekEnd'] as String,
@@ -52,6 +58,9 @@ class WeeklyReview {
     this.needsAttention,
     this.nextWeekFocus,
   });
+  /// Review rows use snake_case keys. The dates are cut to their first 10
+  /// characters because the database may return full timestamps — the app
+  /// only ever compares whole days.
   factory WeeklyReview.fromJson(Map<String, dynamic> j) => WeeklyReview(
     id: j['id'] as String,
     weekStart: j['week_start'] is String
@@ -90,6 +99,10 @@ class WeeklyReviewService {
     };
   }
 
+  /// Saves the review for `weekStart`, creating it or replacing the one
+  /// already stored for that exact week (the backend upserts on it). Only
+  /// non-null fields are put in the body, so leaving a section blank
+  /// deliberately stores it as empty rather than sending a placeholder.
   Future<WeeklyReview> upsert({
     required String weekStart,
     String? biggestWin,

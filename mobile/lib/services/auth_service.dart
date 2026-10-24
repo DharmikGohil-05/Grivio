@@ -11,6 +11,8 @@ class AuthService {
   final ApiClient _client;
   final AuthStorage _storage;
 
+  /// Creates the account and persists the JWT the backend returns, so the
+  /// user stays logged in across restarts without logging in again.
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
@@ -24,6 +26,8 @@ class AuthService {
     return res;
   }
 
+  /// Logs in and stores the returned JWT exactly like register — both
+  /// endpoints hand back a token that is saved before this future completes.
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
@@ -51,6 +55,10 @@ class AuthService {
     await _storage.clearActiveSession();
   }
 
+  /// True when a token merely *exists* locally — deliberately not a server
+  /// round-trip. JWTs are stateless, so the backend stays the authority: an
+  /// expired or forged token is simply rejected by the next real API call
+  /// and never blocks app startup.
   Future<bool> isLoggedIn() => _storage.hasToken();
 
   Future<Map<String, dynamic>> me() async {

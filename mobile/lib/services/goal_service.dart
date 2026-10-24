@@ -2,6 +2,13 @@ import 'api_client.dart';
 import 'auth_storage.dart';
 
 /// Goal + Milestone models matching the backend JSON.
+///
+/// Relationship: a Goal owns many Milestones, and each Milestone points back
+/// via `goalId`. The goal's `progress` percentage is computed server-side
+/// from its milestones, which is why a goal also carries `milestoneCount`
+/// and `completedMilestones` instead of tracking progress locally.
+/// Statuses (validated by the backend): goal = active | completed | archived;
+/// milestone = pending | in_progress | completed.
 class Goal {
   final String id;
   final String name;
@@ -43,6 +50,8 @@ class Goal {
   );
 }
 
+/// One ordered step inside a Goal. `position` is its sequence number within
+/// the goal, and `status` walks pending → in_progress → completed.
 class Milestone {
   final String id;
   final String goalId;
@@ -113,6 +122,9 @@ class GoalService {
     await _client.delete('/goals/$id', token: token);
   }
 
+  /// Milestone reads/creation nest under their parent goal
+  /// (/goals/:goalId/milestones), while update/delete address the milestone
+  /// directly (/milestones/:id) — same object, two route shapes.
   Future<List<Milestone>> listMilestones(String goalId) async {
     final token = await _storage.getToken();
     final res = await _client.get('/goals/$goalId/milestones', token: token);

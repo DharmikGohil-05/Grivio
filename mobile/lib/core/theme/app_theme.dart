@@ -10,6 +10,13 @@ import 'package:flutter/material.dart';
 // -----------------------------------------------------------------------------
 // DESIGN TOKENS — Brand palette
 // -----------------------------------------------------------------------------
+
+/// All brand colors, defined as paired Light/Dark tokens (lightXxx ↔ darkXxx).
+///
+/// The palette enforces the 85–90% neutral / 10–15% accent split: the
+/// background/surface/text tokens fill nearly every pixel with calm
+/// neutrals, while the accent is spent only on interactive focal points
+/// (buttons, selected tabs, progress) so it always reads as "act here".
 class AppColors {
   AppColors._();
 
@@ -34,7 +41,10 @@ class AppColors {
   static const Color lightWarning = Color(0xFFA87535);
   static const Color lightError = Color(0xFFB8545D);
 
-  // Subtle Neumorphic shadows for light mode
+  // Subtle Neumorphic shadows for light mode.
+  // The dark+light pair fakes a single light source: a bright edge on the
+  // lit side and a dark edge on the shaded side — together they create
+  // neumorphism's soft "raised from the surface" illusion.
   static const Color lightShadowDark = Color(0xFFCDD5DC);
   static const Color lightShadowLight = Color(0xFFFFFFFF);
 
@@ -67,6 +77,9 @@ class AppColors {
 // -----------------------------------------------------------------------------
 // SPACING TOKENS — 4 pt grid
 // -----------------------------------------------------------------------------
+
+/// Named spacing steps, all multiples of 4. Using these instead of magic
+/// numbers keeps the vertical rhythm identical across every screen.
 class AppSpacing {
   AppSpacing._();
 
@@ -84,6 +97,10 @@ class AppSpacing {
 // -----------------------------------------------------------------------------
 // RADIUS TOKENS
 // -----------------------------------------------------------------------------
+
+/// Corner-radius steps shared by cards, inputs and buttons.
+/// `pill` (100) is far wider than any chip or badge, so it always renders
+/// as a fully rounded capsule.
 class AppRadius {
   AppRadius._();
 
@@ -98,6 +115,12 @@ class AppRadius {
 // -----------------------------------------------------------------------------
 // TEXT THEME — Inter type scale
 // -----------------------------------------------------------------------------
+
+/// Derives the Inter type scale by *copying* the platform's default text
+/// theme, so every standard Material size and line-height is preserved and
+/// only font family, weight, letter-spacing and color change. Headings and
+/// body use `primary`; the small caption style (bodySmall) steps down to
+/// `secondary`.
 TextTheme _buildTextTheme(TextTheme base, Color primary, Color secondary) {
   return base.copyWith(
     displayMedium: base.displayMedium?.copyWith(
@@ -181,6 +204,9 @@ TextTheme _buildTextTheme(TextTheme base, Color primary, Color secondary) {
 // -----------------------------------------------------------------------------
 // SHARED — subtle Material page transitions (fade + gentle slide up)
 // -----------------------------------------------------------------------------
+// iOS keeps CupertinoPageTransitionsBuilder so navigation matches the
+// platform's native swipe/slide feel; every other platform uses the same
+// FadeUpwards builder for one consistent fade-and-rise across the app.
 const PageTransitionsTheme _grivioPageTransitions = PageTransitionsTheme(
   builders: {
     TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
@@ -194,6 +220,10 @@ const PageTransitionsTheme _grivioPageTransitions = PageTransitionsTheme(
 // -----------------------------------------------------------------------------
 // LIGHT THEME
 // -----------------------------------------------------------------------------
+
+/// Light variant of the design system, consumed by MaterialApp.theme in
+/// main.dart. Its tokens pair 1:1 with buildDarkTheme, so switching modes
+/// only swaps colors — layouts never shift.
 ThemeData buildLightTheme() {
   const scheme = ColorScheme(
     brightness: Brightness.light,
@@ -224,6 +254,8 @@ ThemeData buildLightTheme() {
     dividerColor: AppColors.lightDivider,
     pageTransitionsTheme: _grivioPageTransitions,
 
+    // Cursor and selection handles use the accent color instead of
+    // Material's default blue, so text editing matches the rest of the UI.
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: AppColors.lightAccent,
       selectionColor: AppColors.lightAccent.withValues(alpha: 0.18),
@@ -239,6 +271,9 @@ ThemeData buildLightTheme() {
     appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.lightBackground,
       foregroundColor: AppColors.lightPrimaryText,
+      // Material 3 tints elevated surfaces with the primary color; making it
+      // transparent keeps GRIVIO's flat neumorphic surfaces unpolluted.
+      // (The same is applied to the nav bar and bottom sheets below.)
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
@@ -477,6 +512,12 @@ ThemeData buildLightTheme() {
 // -----------------------------------------------------------------------------
 // DARK THEME
 // -----------------------------------------------------------------------------
+
+/// Dark variant, consumed by MaterialApp.darkTheme. The dark tokens are not
+/// simple inversions of the light ones: the accent is lightened for
+/// contrast on dark surfaces, the neumorphic shadow pair switches to deep
+/// blues, and the text-selection overlay is slightly stronger (0.22 vs
+/// 0.18) to stay visible on dark backgrounds.
 ThemeData buildDarkTheme() {
   const scheme = ColorScheme(
     brightness: Brightness.dark,

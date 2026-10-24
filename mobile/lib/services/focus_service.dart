@@ -2,6 +2,12 @@ import 'api_client.dart';
 import 'auth_storage.dart';
 
 /// Focus session model matching the backend JSON.
+///
+/// Status lifecycle: a session starts 'active' and ends as either
+/// 'completed' (with an optional rating/reflection) or 'cancelled'. There
+/// is no 'paused' status — pausing only sets `pausedAt` while the status
+/// stays 'active'; resuming folds that pause into `totalPauseSeconds` and
+/// clears `pausedAt` again.
 class FocusSession {
   final String id;
   final String? taskId;
@@ -52,6 +58,8 @@ class FocusSession {
   int focusedSeconds(DateTime now) {
     var paused = totalPauseSeconds * 1000;
     if (pausedAt != null) paused += now.difference(pausedAt!).inMilliseconds;
+    // Millisecond math avoids rounding drift, and the clamp guards against
+    // a negative value if `now` somehow lands before a stored timestamp.
     return (now.difference(startedAt).inMilliseconds - paused).clamp(
           0,
           1 << 31,
@@ -61,6 +69,10 @@ class FocusSession {
 }
 
 /// API wrapper for /api/focus/sessions.
+///
+/// The backend stamps every transition (start/pause/resume/complete/cancel)
+/// with its own clock, so elapsed time never depends on the device clock
+/// staying accurate.
 class FocusService {
   FocusService({ApiClient? client, AuthStorage? storage})
     : _client = client ?? ApiClient(),
@@ -69,6 +81,8 @@ class FocusService {
   final ApiClient _client;
   final AuthStorage _storage;
 
+  /// Starts a session, optionally linked to a task; without a taskId the
+  /// key is omitted entirely so the body stays an empty JSON object.
   Future<FocusSession> start({String? taskId}) async {
     final token = await _storage.getToken();
     final res = await _client.post(
@@ -79,24 +93,36 @@ class FocusService {
     return FocusSession.fromJson(res['session'] as Map<String, dynamic>);
   }
 
+  /// Fetches one session by id. Besides normal use, this powers recovery of
+  /// an in-progress session: the app caches the active session's id locally
+  /// (see AuthStorage's active-session helpers), re-fetches it on return,
+  /// and only resumes the timer when it is still 'active'.
   Future<FocusSession> get(String id) async {
     final token = await _storage.getToken();
     final res = await _client.get('/focus/sessions/$id', token: token);
     return FocusSession.fromJson(res['session'] as Map<String, dynamic>);
   }
 
+  /// Marks the session paused (the backend sets `pausedAt` server-side);
+  /// the status stays 'active', and pausing an already-paused session is a
+  /// harmless no-op.
   Future<FocusSession> pause(String id) async {
     final token = await _storage.getToken();
     final res = await _client.patch('/focus/sessions/$id/pause', token: token);
     return FocusSession.fromJson(res['session'] as Map<String, dynamic>);
   }
 
+  /// Clears `pausedAt`, rolling the paused stretch into
+  /// `totalPauseSeconds` so it stops counting against focus time.
   Future<FocusSession> resume(String id) async {
     final token = await _storage.getToken();
     final res = await _client.patch('/focus/sessions/$id/resume', token: token);
     return FocusSession.fromJson(res['session'] as Map<String, dynamic>);
   }
 
+  /// Ends a session as 'completed', optionally attaching a productivity
+  /// rating and a reflection. An empty reflection string is treated as
+  /// "nothing to say" and is not sent at all.
   Future<FocusSession> complete(
     String id, {
     String? rating,
@@ -115,6 +141,9 @@ class FocusService {
     return FocusSession.fromJson(res['session'] as Map<String, dynamic>);
   }
 
+  /// Abandons the session as 'cancelled'. The backend still stamps the end
+  /// time and records the focused seconds elapsed so far, so the record
+  /// still shows how long the attempt lasted.
   Future<FocusSession> cancel(String id) async {
     final token = await _storage.getToken();
     final res = await _client.patch('/focus/sessions/$id/cancel', token: token);

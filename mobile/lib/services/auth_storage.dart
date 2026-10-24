@@ -2,6 +2,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Secure on-device storage for the auth token (Keychain/Keystore).
 /// NEVER store the JWT in plain SharedPreferences.
+///
+/// Every method swallows storage errors on purpose: the plugin can throw on
+/// simulators or locked keychains, so a failed read behaves as "no value"
+/// and a failed write is silent — losing a stored value must never crash
+/// the app.
 class AuthStorage {
   AuthStorage() : _storage = const FlutterSecureStorage();
 
@@ -22,6 +27,8 @@ class AuthStorage {
     }
   }
 
+  /// Presence-only check: a readable token counts as logged in, regardless
+  /// of expiry — enforcing expiry belongs to the backend.
   Future<bool> hasToken() async => (await getToken()) != null;
 
   /// Logout = delete the token locally. JWT is stateless, so the
@@ -73,6 +80,8 @@ class AuthStorage {
   }
 
   // --- Theme mode preference (system | light | dark) ---
+  // Stored through this same secure wrapper for convenience: the app avoids
+  // a second storage plugin just for one harmless string.
   static const _themeModeKey = 'grivio_theme_mode';
 
   Future<void> saveThemeMode(String mode) async {

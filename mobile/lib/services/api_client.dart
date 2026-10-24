@@ -6,6 +6,8 @@ import '../core/config/app_config.dart';
 
 /// Minimal API client — every network call to the Grivio backend
 /// goes through here so headers/errors/token handling live in one place.
+/// Each verb also applies AppConfig.apiTimeout, so no request can hang the
+/// UI indefinitely.
 class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
 
@@ -76,6 +78,8 @@ class ApiClient {
     return _parse(res);
   }
 
+  // JSON content type always; the Authorization header only appears when a
+  // token is passed, so public calls (login/register) send no credentials.
   Map<String, String> _headers(String? token) => {
     'Content-Type': 'application/json',
     if (token != null) 'Authorization': 'Bearer $token',
@@ -94,6 +98,10 @@ class ApiClient {
   }
 }
 
+/// Thrown when the backend answers with `success: false`. `message` is the
+/// server's own message, written to be safe to show to the user; the
+/// optional `statusCode` is kept so callers can branch on it
+/// (e.g. 404 = resource gone, 409 = conflict).
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode});
   final String message;

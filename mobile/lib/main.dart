@@ -11,12 +11,22 @@ import 'services/profile_service.dart';
 
 import 'core/theme/theme_controller.dart';
 
+/// App entry point.
+///
+/// Order matters: the widget binding must be ready before any plugin
+/// channel (secure storage) is touched, and the saved theme is awaited
+/// *before* runApp so the very first frame is already Light/Dark — no
+/// flash of the wrong theme on launch.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ThemeController.instance.loadThemeMode();
   runApp(const GrivioApp());
 }
 
+/// Root widget: builds both themes and lets ThemeController pick the mode.
+///
+/// The whole MaterialApp sits inside a ListenableBuilder on the controller,
+/// so toggling Light/Dark/System rebuilds it instantly — no app restart.
 class GrivioApp extends StatelessWidget {
   const GrivioApp({super.key});
 
@@ -82,6 +92,9 @@ class _AppEntryState extends State<_AppEntry> {
       }
     }
     // Hold the splash for its minimum duration on cold start only.
+    // Why only the first resolve: _resolve() also runs after login, logout
+    // and setup — those must route instantly instead of replaying the
+    // splash every single time.
     if (_firstResolve) {
       _firstResolve = false;
       final elapsed = DateTime.now().difference(_startedAt);

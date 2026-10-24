@@ -2,6 +2,12 @@ import 'api_client.dart';
 import 'auth_storage.dart';
 
 /// Task + Subtask models matching the backend JSON.
+///
+/// Link chain: Subtask → Task → (optionally) Milestone → Goal. The
+/// `goalId`/`milestoneId` pairs are null for standalone tasks, while
+/// `goalName`/`milestoneTitle` are denormalized copies the backend joins
+/// in, so the UI can label a task with its parents' names without extra
+/// requests.
 class GrivioTask {
   final String id;
   final String title;
@@ -35,6 +41,8 @@ class GrivioTask {
     required this.completedSubtasks,
   });
 
+  /// snake_case JSON → camelCase fields, with safe defaults (empty title,
+  /// priority 'medium', status 'pending') for anything missing.
   factory GrivioTask.fromJson(Map<String, dynamic> json) => GrivioTask(
     id: json['id'] as String,
     title: json['title'] as String? ?? '',
@@ -55,6 +63,9 @@ class GrivioTask {
   );
 }
 
+/// A checkable line item inside a task; `taskId` is the owning task and
+/// `position` its order. These roll up into the task's
+/// subtaskCount/completedSubtasks fields.
 class Subtask {
   final String id;
   final String taskId;
@@ -94,6 +105,8 @@ class TaskService {
     String? milestoneId,
   }) async {
     final token = await _storage.getToken();
+    // Optional filters become query parameters, combined with '&' when more
+    // than one is set (e.g. /tasks?status=pending&goalId=abc).
     String path = '/tasks';
     final params = <String>[];
     if (status != null) params.add('status=$status');
@@ -118,6 +131,11 @@ class TaskService {
     return GrivioTask.fromJson(res['task'] as Map<String, dynamic>);
   }
 
+  /// Moves a task through its lifecycle — pending → in_progress → completed,
+  /// with cancelled reachable from any of them (the backend validates the
+  /// value). Status changes use this dedicated PATCH endpoint instead of a
+  /// full update, so the backend can apply status-specific side effects in
+  /// one place.
   Future<GrivioTask> setTaskStatus(String id, String status) async {
     final token = await _storage.getToken();
     final res = await _client.patch(
