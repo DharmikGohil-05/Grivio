@@ -53,6 +53,8 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
   final _minCtrl = TextEditingController();
   String? _category;
   String? _priority;
+  // Per-field opt-in flags: a field is applied only when its box is
+  // checked, so the AI proposal can never overwrite anything implicitly.
   bool _selTitle = false,
       _selDesc = false,
       _selCat = false,
@@ -70,6 +72,8 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
     super.dispose();
   }
 
+  /// Count of checked scalar fields only — the suggested subtasks are
+  /// never applied, so they are not counted here.
   int get _selectedFieldCount =>
       (_selTitle ? 1 : 0) +
       (_selDesc ? 1 : 0) +
@@ -159,6 +163,8 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
       _applying = true;
       _error = null;
     });
+    // Partial payload: only checked, valid fields are included, so the
+    // request carries exactly what the user confirmed and nothing else.
     final fields = <String, dynamic>{};
     if (_selTitle && _titleCtrl.text.trim().isNotEmpty) {
       fields['title'] = _titleCtrl.text.trim();
@@ -197,6 +203,8 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
     }
   }
 
+  /// Snapshots the current edits into a TaskImprovement — used in
+  /// unsaved mode to hand values back to the Add Task form (no API call).
   TaskImprovement _editedProposal() => TaskImprovement(
     title: _titleCtrl.text.trim(),
     description: _descCtrl.text,
@@ -408,6 +416,8 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                             isDense: true,
                             border: OutlineInputBorder(),
                           ),
+                          // The app's fixed category list; the AI proposal
+                          // only seeds the initial selection value.
                           items:
                               const [
                                     'Career',
@@ -502,6 +512,9 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                         ),
                       ),
                       const SizedBox(height: 4),
+                      // Display-only suggestions: applying this proposal
+                      // updates task fields only — real subtasks are added
+                      // afterwards via AI Assist or the subtask list.
                       ..._subs.map(
                         (s) => Padding(
                           padding: const EdgeInsets.only(top: 6),
@@ -558,6 +571,8 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),
+                  // Flexible keeps the action button within the leftover
+                  // row width so its label can't push the footer out.
                   Flexible(
                     child: FilledButton(
                       onPressed:

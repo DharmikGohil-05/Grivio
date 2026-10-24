@@ -41,6 +41,11 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     _recoverActiveSession();
   }
 
+  /// On startup, re-attaches to a session saved by a previous run: if
+  /// the server still reports it active, the running timer (and the
+  /// original duration choice) is restored instead of starting fresh.
+  /// A session that no longer exists (404) or is no longer active clears
+  /// the stored pointer so recovery stops being attempted.
   Future<void> _recoverActiveSession() async {
     final id = await AuthStorage().getActiveSessionId();
     if (id == null) return;
@@ -52,6 +57,8 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
           setState(() {
             _session = session;
             if (duration != null && duration > 0) {
+              // Recover the original minute choice saved alongside the
+              // session id (stored in seconds).
               _durationMinutes = duration ~/ 60;
             }
             _now = DateTime.now();
@@ -81,6 +88,8 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Recompute as soon as the app returns to the foreground so time
+    // spent backgrounded is counted (elapsed comes from timestamps).
     if (state == AppLifecycleState.resumed) {
       setState(() => _now = DateTime.now());
       _maybeAutoComplete();
@@ -94,6 +103,9 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  /// Fires (from the ticker and on app resume) whenever an unpaused
+  /// active session has run out of time — elapsed is measured from
+  /// server timestamps, not from a local countdown.
   void _maybeAutoComplete() {
     final s = _session;
     if (s == null || s.status != 'active' || s.pausedAt != null) return;
@@ -110,6 +122,8 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     try {
       final session = await _service.start(taskId: _selectedTaskId);
       setState(() => _session = session);
+      // Persist the session id + intended duration locally so a later
+      // launch can re-attach to this running session (see recovery above).
       await AuthStorage().saveActiveSession(session.id, _durationMinutes * 60);
       _ticker?.cancel();
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -127,6 +141,9 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Pausing is a server round-trip: the backend records `pausedAt`, and
+  /// focusedSeconds() excludes paused time, so the countdown never
+  /// drifts while paused.
   Future<void> _pause() async {
     if (_session == null) return;
     try {
@@ -147,6 +164,9 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Completes the session on the server, clears the local recovery
+  /// pointer, then opens the reflection step. Duration falls back to
+  /// locally computed focus time if the server didn't return one.
   Future<void> _finish() async {
     if (_session == null) return;
     final session = _session!;
@@ -179,6 +199,8 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Cancels the session after confirmation — unlike Finish, this
+  /// discards the session's progress via the server's cancel endpoint.
   Future<void> _stop() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -502,10 +524,14 @@ class _FocusCompletedScreenState extends State<FocusCompletedScreen> {
     super.dispose();
   }
 
+  /// Saves the optional rating/reflection onto the already-completed
+  /// session. Errors are swallowed on purpose: the reflection is extra
+  /// context, and the user should still get back to the app either way.
   Future<void> _done() async {
     setState(() => _saving = true);
     try {
       final token = await AuthStorage().getToken();
+      // The API expects snake_case, lowercase rating values.
       await ApiClient().patch(
         '/focus/sessions/${widget.sessionId}',
         body: {

@@ -10,6 +10,9 @@ import '../core/theme/theme_controller.dart';
 // Adapts automatically to Light, Dark, and System modes.
 // =============================================================================
 
+// raised = surface floats above the background (the default look);
+// inset = pressed/engraved well with shadows flipped inward;
+// flat = color + border only, no shadows at all.
 enum NeumorphicStyle { raised, inset, flat }
 
 /// Tactile container with controlled soft light and shadow.
@@ -45,12 +48,18 @@ class Neumorphic extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    // `inset: true` is shorthand for NeumorphicStyle.inset; an explicit
+    // `style` always wins over the convenience flag.
     final effectiveStyle =
         style ?? (inset ? NeumorphicStyle.inset : NeumorphicStyle.raised);
 
     final baseColor =
         color ?? (isDark ? AppColors.darkSurface : AppColors.lightSurface);
 
+    // Both shadow colors come from theme tokens (light vs dark sets), so
+    // the same depth reads correctly on either background: a dark shadow
+    // on one side, a light highlight on the other, which creates the
+    // illusion of a single soft light source.
     final shadowDark = isDark
         ? AppColors.darkShadowDark.withValues(alpha: 0.65)
         : AppColors.lightShadowDark.withValues(alpha: 0.6);
@@ -65,6 +74,9 @@ class Neumorphic extends StatelessWidget {
     if (effectiveStyle == NeumorphicStyle.flat) {
       shadows = const [];
     } else if (effectiveStyle == NeumorphicStyle.inset) {
+      // Inset flips the geometry: smaller offsets, negative spread and
+      // reduced alpha make the surface look pressed *into* the page
+      // rather than raised above it.
       shadows = [
         BoxShadow(
           color: shadowDark.withValues(alpha: isDark ? 0.35 : 0.25),
@@ -141,6 +153,8 @@ class NeumorphicButton extends StatefulWidget {
 }
 
 class _NeumorphicButtonState extends State<NeumorphicButton> {
+  // Press feedback = the surface "sinks": it scales to 0.98 and its
+  // depth collapses toward 0, imitating a real button being depressed.
   bool _isPressed = false;
 
   @override
@@ -179,6 +193,8 @@ class _NeumorphicButtonState extends State<NeumorphicButton> {
         child: SizedBox(
           width: widget.width,
           child: Neumorphic(
+            // Disabled state keeps the color but fades it and flattens
+            // the depth, so an unusable button visibly loses its relief.
             color: enabled ? bgColor : bgColor.withValues(alpha: 0.5),
             depth: enabled ? currentDepth : 0,
             borderRadius: widget.borderRadius,
@@ -236,6 +252,9 @@ class GrivioLogo extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
+          // If the bundled asset is missing (or fails to load), show a
+          // tinted placeholder tile with the accent icon instead of a
+          // broken-image box.
           errorBuilder: (_, __, ___) {
             return Container(
               color: isDark
@@ -416,7 +435,8 @@ class GrivioProgressRing extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Recessed track background
+          // Recessed track background — 4px smaller than the ring so the
+          // track reads as a groove the progress sits inside.
           Container(
             width: size - 4,
             height: size - 4,
@@ -431,6 +451,8 @@ class GrivioProgressRing extends StatelessWidget {
             width: size,
             height: size,
             child: CircularProgressIndicator(
+              // Clamped so a caller can never pass <0 or >1 and make the
+              // ring overflow or throw.
               value: progress.clamp(0.0, 1.0),
               strokeWidth: strokeWidth,
               strokeCap: StrokeCap.round,

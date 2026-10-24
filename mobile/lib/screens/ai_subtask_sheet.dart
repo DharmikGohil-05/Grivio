@@ -112,6 +112,9 @@ class _AISubtaskSheetState extends State<AISubtaskSheet> {
     }
   }
 
+  /// Persists only the checked suggestions, one create call each, reusing
+  /// the normal subtask endpoint. Closing the sheet any other way
+  /// (Cancel, close icon, system back) sends nothing to the server.
   Future<void> _addSelected() async {
     final selected = _suggestions.where((s) => s.selected).toList();
     if (selected.isEmpty || _saving) return;
@@ -156,6 +159,8 @@ class _AISubtaskSheetState extends State<AISubtaskSheet> {
     });
   }
 
+  /// ReorderableListView reports [newIndex] as if the dragged item were
+  /// still in the list, so a downward move lands one past its real slot.
   void _onReorder(int oldIndex, int newIndex) {
     setState(() {
       if (newIndex > oldIndex) newIndex -= 1;
@@ -353,6 +358,9 @@ class _AISubtaskSheetState extends State<AISubtaskSheet> {
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),
+                  // Flexible bounds the button to the row's leftover
+                  // width, so a long label shrinks instead of overflowing
+                  // the footer on narrow screens.
                   Flexible(
                     child: FilledButton(
                       onPressed: (_selectedCount == 0 || _saving || _loading)
@@ -476,6 +484,8 @@ class _SuggestionRowState extends State<_SuggestionRow> {
                             ),
                           ),
                           onChanged: (v) {
+                            // Unparseable or non-positive input clears the
+                            // estimate (null) instead of storing garbage.
                             final n = int.tryParse(v.trim());
                             s.estimatedMinutes = (n != null && n > 0)
                                 ? n
@@ -489,6 +499,9 @@ class _SuggestionRowState extends State<_SuggestionRow> {
                 ],
               ),
             ),
+            // Drag starts only from the handle (the list was built with
+            // buildDefaultDragHandles: false), leaving the text fields
+            // and scrolling to their normal gestures.
             ReorderableDragStartListener(
               index: widget.index,
               child: Icon(

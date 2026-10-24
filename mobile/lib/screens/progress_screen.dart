@@ -21,6 +21,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
   bool _loading = true;
   String? _error;
 
+  // The key is the value sent to the API; the label is what the chip
+  // shows. Changing it triggers a fresh fetch with the new range.
   static const _ranges = {
     'week': 'Week',
     'month': 'Month',
@@ -33,6 +35,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
     _load();
   }
 
+  /// Every number here comes from GET /progress?range=…: the backend
+  /// computes the summary, trends, per-goal progress and insight strings
+  /// from the logged-in user's own records — the screen only formats them.
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -230,7 +235,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ),
               const SizedBox(height: 24),
 
-              // Weekly Review Banner
+              // Weekly Review Banner — entry point to the Weekly Review
+              // screen (weekly stats, reflection form, AI Growth Review).
               InkWell(
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const WeeklyReviewScreen()),
@@ -425,6 +431,8 @@ class _TrendChart extends StatelessWidget {
       );
     }
 
+    // Clamp to at least 1 so an all-zero series still gets a usable
+    // vertical axis instead of a degenerate 0-height chart.
     final maxY = points
         .map((p) => p.value)
         .fold<int>(0, (a, b) => a > b ? a : b)

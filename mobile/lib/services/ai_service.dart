@@ -7,6 +7,8 @@ class SubtaskSuggestion {
   String title;
   String? description;
   int? estimatedMinutes;
+  // Mutable and defaults to selected so the bottom sheet can edit these
+  // suggestions in place, and the user opts OUT rather than opting in.
   bool selected;
 
   SubtaskSuggestion({
@@ -23,6 +25,8 @@ class SubtaskSuggestion {
         estimatedMinutes: (j['estimatedMinutes'] as num?)?.toInt(),
       );
 
+  // Only the fields the backend expects are serialized (null optionals
+  // omitted); `selected` is purely UI state and is deliberately not sent.
   Map<String, dynamic> toJson() => {
     'title': title,
     if (description != null) 'description': description,
@@ -38,6 +42,9 @@ class AIService {
 
   final ApiClient _client;
   final AuthStorage _storage;
+  // Every AI call follows one path: Flutter → GRIVIO backend → Groq. The
+  // app only attaches the user's auth token; the Groq API key lives on
+  // the backend and is never shipped inside the app.
 
   /// Asks the backend (which calls Groq) for subtask suggestions.
   /// Returns user-reviewable suggestions — nothing is saved automatically.
@@ -73,6 +80,9 @@ class AIService {
     final token = await _storage.getToken();
     final res = await _client.post(
       '/ai/tasks/improve',
+      // Either identify an existing task by id, or send the unsaved title
+      // (plus optional description) — the backend branches on which one
+      // is present, so the two never appear together.
       body: {
         if (taskId != null) 'taskId': taskId,
         if (taskId == null) ...{
@@ -101,6 +111,8 @@ class AIService {
     final token = await _storage.getToken();
     final res = await _client.post(
       '/ai/breakdown/generate',
+      // Same contract as improveTask: an existing goalId, or the draft
+      // title/description for a goal that does not exist yet.
       body: {
         if (goalId != null) 'goalId': goalId,
         if (goalId == null) ...{
@@ -167,6 +179,8 @@ class PlanSlot {
   String taskId;
   final String title;
   final String priority;
+  // `start` and `minutes` are mutable: the daily planner lets the user
+  // edit them and then re-times the rest of the schedule in memory.
   String start;
   int minutes;
   final bool isFallbackEstimate;
@@ -180,11 +194,15 @@ class PlanSlot {
     this.isFallbackEstimate = false,
   });
 
+  /// 'HH:mm' parsed into minutes since midnight so slots can be
+  /// compared and shifted arithmetically.
   int get startMinutes {
     final p = start.split(':');
     return int.parse(p[0]) * 60 + int.parse(p[1]);
   }
 
+  /// Derived end time (start + minutes), formatted 'HH:mm'. Computed on
+  /// the client — the backend only sends `start` and `minutes`.
   String get end {
     final total = startMinutes + minutes;
     return '${(total ~/ 60).toString().padLeft(2, '0')}:${(total % 60).toString().padLeft(2, '0')}';
@@ -196,6 +214,8 @@ class PlanSlot {
     priority: j['priority'] as String? ?? 'medium',
     start: j['start'] as String? ?? '00:00',
     minutes: (j['minutes'] as num?)?.toInt() ?? 30,
+    // Backend flag: this slot's duration was a fallback estimate rather
+    // than a duration the task itself specified.
     isFallbackEstimate: j['isFallbackEstimate'] as bool? ?? false,
   );
 }
@@ -247,6 +267,8 @@ class DailyPlan {
   final List<PlanSlot> scheduled;
   final List<UnscheduledItem> unscheduled;
   final List<PlanBreak> breaks;
+  /// Notes the backend attaches to the plan; parsed defensively as
+  /// strings (the planner screen does not currently render them).
   final List<String> warnings;
 
   const DailyPlan({
@@ -275,6 +297,9 @@ class DailyPlan {
     plannedMinutes: (j['plannedMinutes'] as num?)?.toInt() ?? 0,
     remainingMinutes: (j['remainingMinutes'] as num?)?.toInt() ?? 0,
     contextApplied: j['contextApplied'] as bool? ?? false,
+    // JSON keys differ from field names (scheduledTasks → scheduled,
+    // unscheduledTasks → unscheduled); absent lists become empty ones so
+    // callers never have to null-check.
     scheduled: ((j['scheduledTasks'] as List?) ?? const [])
         .map((e) => PlanSlot.fromJson(e as Map<String, dynamic>))
         .toList(),
@@ -314,6 +339,8 @@ class TaskImprovement {
     category: j['category'] as String?,
     priority: j['priority'] as String?,
     estimatedMinutes: (j['estimatedMinutes'] as num?)?.toInt(),
+    // Subtasks may arrive as plain strings or as {title: ...} maps; both
+    // shapes are accepted and blank results are dropped.
     subtasks: ((j['subtasks'] as List?) ?? const [])
         .map((e) => (e is Map ? e['title'] : e)?.toString() ?? '')
         .where((t) => t.isNotEmpty)
@@ -337,6 +364,9 @@ class BreakdownProposal {
 class BreakdownPhase {
   String title;
   String? description;
+  // Mutable + selected-by-default, same editable-preview contract as
+  // SubtaskSuggestion: the sheet edits these in place and the user
+  // unchecks what they don't want created.
   bool selected;
   List<BreakdownTask> tasks;
 
@@ -382,7 +412,10 @@ class BreakdownTask {
 class AIWeeklyReview {
   final String weekStart;
   final String weekEnd;
+  /// Backend flag: the week had little activity to interpret, so the
+  /// narrative lists below may be thin or empty.
   final bool lowData;
+  /// Real, backend-computed totals for the week (not AI-generated).
   final WeeklyStats summary;
   final List<String> wins;
   final List<String> progressHighlights;

@@ -85,6 +85,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// "Today's list": cancelled tasks never count; tasks without a due
+  /// date count while they are still open; dated tasks count when due
+  /// today or earlier (overdue included). Results are sorted with
+  /// completed tasks last, then by priority (high → low).
   List<GrivioTask> _todayTasks() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -102,6 +106,9 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  /// The "current goal" shown on Home: among active goals, the one with
+  /// the nearest target date; falls back to the first active goal when
+  /// none of them has a target date.
   Goal? _pickActiveGoal(List<Goal> goals) {
     if (goals.isEmpty) return null;
     final withDate = goals.where((g) => g.targetDate != null).toList()
@@ -109,6 +116,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return withDate.isNotEmpty ? withDate.first : goals.first;
   }
 
+  /// Optimistic toggle: the row flips immediately for a snappy feel,
+  /// then the status is sent to the API and everything is re-fetched; a
+  /// failure reverts the row to its previous status.
   Future<void> _toggleTask(GrivioTask t) async {
     final previous = t.status;
     setState(() {
@@ -247,6 +257,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final progress = totalToday == 0 ? 0.0 : completedToday / totalToday;
     final remaining = totalToday - completedToday;
     final activeGoal = _pickActiveGoal(_goals);
+    // "Current milestone" = first in-progress, else first pending. When
+    // the active goal has no milestones at all, an empty placeholder is
+    // used and the UI hides it by checking for a blank id.
     final currentMilestone = activeGoal == null
         ? null
         : _milestones.firstWhere(
@@ -311,6 +324,8 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 24),
 
               // ── Daily Progress Ring ───────────────────────────────────────
+              // The ring percentage is completed ÷ total of the local
+              // "today" list (see _todayTasks) — computed here, not by AI.
               Center(
                 child: GrivioProgressRing(
                   progress: progress,
@@ -550,6 +565,8 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 24),
 
               // ── Factual Daily Insight ─────────────────────────────────────
+              // Plain counts from the same local list — a motivational
+              // line, not an AI-generated insight.
               if (totalToday > 0) ...[
                 Neumorphic(
                   padding: const EdgeInsets.all(14),
@@ -613,6 +630,8 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 16),
 
               // ── Daily Reflection Banner ───────────────────────────────────
+              // Offered only while today's reflection is missing; once it
+              // exists the banner is not shown again.
               if (_todayReflection == null)
                 InkWell(
                   onTap: () => Navigator.of(context).push(

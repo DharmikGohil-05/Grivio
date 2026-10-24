@@ -30,6 +30,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     _load();
   }
 
+  /// Loads the task and its subtasks. Ownership is never chosen here:
+  /// every request carries the logged-in user's auth token and the
+  /// server returns only that user's records.
   Future<void> _load() async {
     try {
       final tasks = await _service.listTasks();
@@ -333,6 +336,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           const SizedBox(height: 20),
 
           // ── AI Actions Group ───────────────────────────────────────────
+          // All three sheets are preview-first: they only show
+          // suggestions, and nothing is created or updated until the user
+          // explicitly confirms inside the sheet.
           const SectionLabel('AI Assistants'),
           OutlinedButton.icon(
             onPressed: () async {
@@ -374,6 +380,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 context: context,
                 isScrollControlled: true,
                 builder: (_) => AIBreakdownSheet(
+                  // saveGoalId makes the task's goal the save target; if
+                  // the task has no goal (null), the sheet stays
+                  // preview-only and creates nothing.
                   saveGoalId: task.goalId,
                   title: task.title,
                   description: task.description,

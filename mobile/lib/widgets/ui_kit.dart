@@ -37,12 +37,17 @@ class AmbientBackground extends StatelessWidget {
     final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
     final a = intensity.clamp(0.0, 2.0);
 
+    // IgnorePointer so the decoration never intercepts taps meant for
+    // the real content stacked on top of it.
     return IgnorePointer(
       child: ClipRect(
         child: Stack(
           fit: StackFit.expand,
           children: [
             ColoredBox(color: bg),
+            // The orbs are deliberately positioned beyond the screen
+            // edges; ClipRect trims the overflow so only a soft gradient
+            // arc peeks in from each corner.
             Positioned(
               top: -110,
               right: -80,
@@ -143,6 +148,8 @@ class _StaggeredInState extends State<StaggeredIn>
     if (widget.delay == Duration.zero) {
       _controller.forward();
     } else {
+      // Deferring forward() lets sibling widgets stagger in: give each
+      // one a larger delay and they animate one after another.
       Future<void>.delayed(widget.delay, () {
         if (mounted) _controller.forward();
       });
@@ -178,6 +185,9 @@ class GrivioWordmark extends StatelessWidget {
     final from = isDark ? AppColors.darkAccent : AppColors.lightAccent;
     final to = isDark ? AppColors.darkAccentPressed : AppColors.lightAccentPressed;
 
+    // The text itself is drawn white; the ShaderMask then replaces those
+    // pixels with the accent gradient, so the gradient only tints the
+    // glyphs and leaves everything else untouched.
     return ShaderMask(
       shaderCallback: (bounds) =>
           LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [from, to])
@@ -292,6 +302,8 @@ class _PulseRingState extends State<PulseRing>
       animation: _controller,
       builder: (context, _) {
         final t = _controller.value;
+        // One pulse = grow while fading out over a full cycle; the
+        // repeat() above restarts it seamlessly.
         final scale = 0.85 + t * 0.4;
         final opacity = (1 - t) * (isDark ? 0.22 : 0.18);
         return Opacity(
@@ -392,6 +404,9 @@ class _LoadingDotsState extends State<LoadingDots>
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(3, (i) {
+            // Each dot lags the previous one by 20% of the cycle so the
+            // pulses chase each other; the triangle wave below turns the
+            // 0–1 phase into a smooth fade in/out.
             final phase = (_controller.value - i * 0.2) % 1.0;
             final pulse = Curves.easeInOut.transform(
               phase < 0.5 ? phase * 2 : (1 - phase) * 2,

@@ -27,6 +27,10 @@ class _TasksScreenState extends State<TasksScreen> {
     _load();
   }
 
+  /// Fetches the user's tasks and applies the active filter client-side:
+  /// 'today' = open tasks due today or with no due date, 'upcoming' =
+  /// open tasks with any due date that isn't today (overdue included),
+  /// 'completed' = everything marked done.
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
@@ -71,6 +75,8 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
+  /// Sends the new status to the API and reloads, so the list always
+  /// reflects server truth rather than only local state.
   Future<void> _toggleComplete(GrivioTask t) async {
     await _service.setTaskStatus(
       t.id,
@@ -102,6 +108,8 @@ class _TasksScreenState extends State<TasksScreen> {
       appBar: AppBar(
         title: const Text('Tasks'),
         actions: [
+          // Shortcut to the AI daily planner — the same screen Home's
+          // "Plan my day" button opens.
           IconButton(
             icon: const Icon(Icons.auto_awesome, size: 20),
             tooltip: 'Plan my day',

@@ -30,6 +30,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     _load();
   }
 
+  /// Loads the goal, its milestones and its tasks in one go; all three
+  /// requests carry the user's auth token, so the server only ever
+  /// returns this user's data.
   Future<void> _load() async {
     try {
       final goal = await _service.getGoal(widget.goalId);
@@ -50,6 +53,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     }
   }
 
+  /// Tapping a milestone title advances its status:
+  /// pending → in_progress → completed → back to pending.
   Future<void> _cycleStatus(Milestone m) async {
     final next = m.status == 'pending'
         ? 'in_progress'
@@ -233,6 +238,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           const SizedBox(height: 14),
 
           // ── AI Breakdown Action ─────────────────────────────────────────
+          // With a goalId, this goal is both the generation context and
+          // the save target; confirmed phases become milestones and
+          // confirmed tasks are created linked to them via the normal
+          // create APIs. The sheet stays a preview until then.
           OutlinedButton.icon(
             onPressed: () async {
               final saved = await showModalBottomSheet<bool>(
@@ -375,7 +384,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                                 color: color,
                               ),
                             ),
-                            // Linked tasks
+                            // Linked tasks — matched to this milestone by
+                            // the task's milestoneId.
                             ..._tasks
                                 .where((t) => t.milestoneId == m.id)
                                 .map(

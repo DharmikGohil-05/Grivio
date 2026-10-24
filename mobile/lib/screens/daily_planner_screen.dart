@@ -8,6 +8,8 @@ import '../widgets/neumorphic.dart';
 
 /// In-memory session store for an accepted daily plan.
 class SessionPlanStore {
+  // Client memory only: there is no schedule table on the backend, and
+  // `static` means it survives navigation but dies with the app run.
   static DailyPlan? accepted;
   static int get acceptedCount => accepted?.scheduled.length ?? 0;
 }
@@ -53,6 +55,8 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
     super.dispose();
   }
 
+  /// Counts incomplete tasks for the "available to schedule" hint.
+  /// Informational only, so failures are silently ignored.
   Future<void> _countEligibleTasks() async {
     try {
       final tasks = await TaskService().listTasks();
@@ -143,6 +147,9 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
     }
   }
 
+  /// Recomputes slot start times from [index] onward after an edit:
+  /// each slot follows the previous one plus the current break length,
+  /// and a slot that would run past the window is pulled back inside it.
   void _reflowFrom(int index) {
     final plan = _plan;
     if (plan == null) return;
@@ -197,6 +204,7 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
         ],
       ),
     );
+    // Accept 5–480 minutes only; anything else leaves the slot as-is.
     if (v != null && v >= 5 && v <= 480) {
       plan.scheduled[index].minutes = v;
       _reflowFrom(index);
@@ -225,6 +233,8 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
     _reflowFrom(index);
   }
 
+  /// Total minutes already spoken for: slot minutes plus break minutes,
+  /// compared against the plan's capacity in [_remainingTotal].
   int get _plannedTotal {
     final plan = _plan;
     if (plan == null) return 0;
@@ -238,6 +248,9 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
     return plan.capacityMinutes - _plannedTotal;
   }
 
+  /// Accepting stores the plan in [SessionPlanStore] (client memory
+  /// only) and closes the screen — no endpoint is called, so nothing is
+  /// written to the backend and no task is rescheduled.
   Future<void> _acceptPlan() async {
     if (_accepting || _plan == null) return;
     setState(() => _accepting = true);
@@ -254,6 +267,8 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
     Navigator.of(context).pop(true);
   }
 
+  /// Throws away the draft and any previously accepted plan — both live
+  /// only in memory, so there is nothing on the server to clean up.
   void _discardPlan() {
     setState(() {
       _plan = null;
@@ -361,6 +376,9 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
 
           // ── Context Input ───────────────────────────────────────────────
           const SectionLabel('Context & Priorities'),
+          // Free-text context is the user's own guidance for this one
+          // generation: it is sent as `dailyContext` and is never stored
+          // as task data or able to create/modify anything by itself.
           TextField(
             controller: _contextCtrl,
             maxLines: 4,
@@ -447,6 +465,9 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
         buildDefaultDragHandles: false,
         itemCount: plan.scheduled.length,
         onReorder: (oldIndex, newIndex) {
+          // The reported index assumes the item is still in the list, so
+          // a downward move lands one past its real slot; reflow then
+          // re-times everything from the move onward.
           if (newIndex > oldIndex) newIndex -= 1;
           final item = plan.scheduled.removeAt(oldIndex);
           plan.scheduled.insert(newIndex, item);
@@ -646,6 +667,8 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
     setState(() {
       if (isStart) {
         _start = picked;
+        // Keep the window valid: if the new start would meet or pass the
+        // end, push the end forward (same minute, one hour later).
         if (_end.hour * 60 + _end.minute <= _start.hour * 60 + _start.minute) {
           _end = TimeOfDay(
             hour: (_start.hour + 1).clamp(0, 23),

@@ -36,6 +36,8 @@ class _WeeklyReviewScreenState extends State<WeeklyReviewScreen> {
   bool _aiLoading = false;
   String? _aiError;
 
+  /// Weeks start on Monday: subtract (weekday − 1) days from any date
+  /// in that week, which also gives Monday for Monday itself.
   static DateTime _mondayOf(DateTime d) {
     final date = DateTime(d.year, d.month, d.day);
     return date.subtract(Duration(days: date.weekday - DateTime.monday));
@@ -119,6 +121,8 @@ class _WeeklyReviewScreenState extends State<WeeklyReviewScreen> {
     }
   }
 
+  /// Navigating weeks also drops any AI review generated for the old
+  /// week, so a stale report is never shown under new dates.
   void _shiftWeek(int days) {
     setState(() => _weekStart = _weekStart.add(Duration(days: days)));
     _aiReviewWeek = null;
@@ -127,6 +131,9 @@ class _WeeklyReviewScreenState extends State<WeeklyReviewScreen> {
     _load();
   }
 
+  /// Read-only AI call: the response is kept in this screen's state only.
+  /// The week it was generated for is recorded so the card can be hidden
+  /// if the user navigates to a different week.
   Future<void> _generateAI() async {
     if (_aiLoading) return;
     setState(() {
@@ -161,6 +168,8 @@ class _WeeklyReviewScreenState extends State<WeeklyReviewScreen> {
     }
   }
 
+  /// Hides the AI report without touching anything else — the saved
+  /// weekly review (the reflection fields below) is separate and stays.
   void _dismissAI() {
     setState(() {
       _aiReview = null;
@@ -291,6 +300,9 @@ class _WeeklyReviewScreenState extends State<WeeklyReviewScreen> {
                     ],
                   ),
                 ),
+              // Only show the AI card if it was generated for the week
+              // currently on screen — otherwise last week's AI text could
+              // appear under this week's stats.
               if (_aiReview != null &&
                   _aiReviewWeek ==
                       _weekStart.toIso8601String().substring(0, 10)) ...[
@@ -419,6 +431,9 @@ class _WeeklyReviewScreenState extends State<WeeklyReviewScreen> {
   }
 }
 
+/// 2×2 grid of the backend-computed weekly stats (tasks completed,
+/// focus logged, goals progressed, completion rate). The client only
+/// formats these numbers for the selected Monday-start week.
 class _WeekStatsGrid extends StatelessWidget {
   const _WeekStatsGrid({required this.stats});
   final WeeklyStats stats;
@@ -540,6 +555,10 @@ class _ReflectionField extends StatelessWidget {
   }
 }
 
+/// Structured AI Growth Review card. The summary line is real,
+/// backend-computed stats; the sections below are the AI's
+/// interpretation of them. Regenerate re-runs the read-only AI call,
+/// and dismiss just hides the card — neither changes saved data.
 class _AIReviewCard extends StatelessWidget {
   const _AIReviewCard({
     required this.review,
@@ -627,6 +646,8 @@ class _AIReviewCard extends StatelessWidget {
     );
   }
 
+  /// Skips rendering a section entirely when the AI returned no items
+  /// for it, instead of showing an empty heading.
   Widget _listSection(String title, List<String> items, bool isDark) {
     if (items.isEmpty) return const SizedBox.shrink();
     return Padding(

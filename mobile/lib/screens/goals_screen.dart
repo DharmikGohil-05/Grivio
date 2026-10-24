@@ -26,6 +26,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
     _load();
   }
 
+  /// Loads this user's goals for the selected status. The filter is
+  /// passed to the API, which scopes results to the logged-in user —
+  /// the client never picks whose goals to show.
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
@@ -41,6 +44,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
     }
   }
 
+  /// Reloads after returning from detail/add screens so edits made
+  /// there show up without a manual pull-to-refresh.
   void _openGoal(Goal g) async {
     await Navigator.of(
       context,
@@ -173,6 +178,8 @@ class _GoalCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 14),
+            // goal.progress is a server-computed 0–100 percentage; the
+            // bar simply maps it onto 0.0–1.0 for the indicator.
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(

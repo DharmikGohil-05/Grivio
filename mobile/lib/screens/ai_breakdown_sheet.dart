@@ -53,6 +53,8 @@ class _PhaseItem {
   final List<_TaskItem> tasks;
 }
 
+/// One proposed task inside a phase; same select/edit/retry rules as
+/// [_PhaseItem].
 class _TaskItem {
   _TaskItem(this.title, this.description, this.minutes);
   String title;
@@ -80,6 +82,8 @@ class _AIBreakdownSheetState extends State<AIBreakdownSheet> {
     super.dispose();
   }
 
+  // Count only not-yet-created selections: items already persisted show
+  // as done and must never be included in a retry.
   int get _selectedPhases =>
       _phases.where((p) => p.selected && !p.created).length;
   int get _selectedTasks => _phases.fold(
@@ -119,6 +123,8 @@ class _AIBreakdownSheetState extends State<AIBreakdownSheet> {
     });
     try {
       final proposal = await _ai.generateBreakdown(
+        // Existing goal: send its id so the backend can read its context;
+        // otherwise send the draft title/description directly.
         goalId: widget.goalId,
         title: widget.goalId == null ? widget.title : null,
         description: widget.goalId == null ? widget.description : null,
@@ -200,6 +206,8 @@ class _AIBreakdownSheetState extends State<AIBreakdownSheet> {
 
       for (final task in phase.tasks.where((t) => t.selected && !t.created)) {
         try {
+          // goalId + milestoneId link each new task to both the goal and
+          // the phase milestone just created, so nothing lands unlinked.
           await _tasks.createTask({
             'title': task.title,
             if (task.description != null) 'description': task.description,
@@ -403,6 +411,8 @@ class _AIBreakdownSheetState extends State<AIBreakdownSheet> {
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),
+                  // Flexible bounds the create button to the leftover row
+                  // width so its count label can't overflow the footer.
                   Flexible(
                     child: FilledButton(
                       onPressed:
@@ -443,6 +453,9 @@ class _AIBreakdownSheetState extends State<AIBreakdownSheet> {
         children: [
           Row(
             children: [
+              // Once a phase is created its checkbox and add-task button
+              // lock and delete is replaced by a check mark, so a retry
+              // after a partial failure can never duplicate or alter it.
               Checkbox(
                 value: phase.selected,
                 onChanged: phase.created
