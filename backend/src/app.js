@@ -16,8 +16,30 @@ const reflectionRoutes = require('./routes/reflection.routes');
 const aiRoutes = require('./routes/ai.routes');
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
+const config = require('./config/env');
 
 const app = express();
+
+// CORS policy:
+//   - CORS_ORIGINS set (production)  → strict allow-list of browser origins.
+//   - CORS_ORIGINS empty (dev)       → permissive, so emulators, the Vite
+//                                      dev server and curl just work.
+// Requests without an Origin header (curl, the Flutter app, server-to-
+// server calls) are never subject to CORS and are always allowed — only
+// browsers enforce it. A disallowed origin simply gets no CORS headers,
+// so the browser blocks the response; the API itself is unaffected.
+const corsOptions = config.corsOrigins.length
+  ? {
+      origin(origin, callback) {
+        // Trailing slashes are stripped on both sides so an entry like
+        // "https://app.example.com/" matches the Origin "https://app.example.com".
+        const allowed = !origin || config.corsOrigins.includes(origin.replace(/\/+$/, ''));
+        callback(null, allowed);
+      },
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    }
+  : {};
 
 // Middleware order matters:
 // 1) express.json() first so every route below sees a parsed req.body.
@@ -25,8 +47,9 @@ const app = express();
 //    including error responses.
 app.use(express.json());
 
-// Permissive for local Flutter development; tighten for production (Phase 16).
-app.use(cors());
+// CORS sits after express.json() so its headers are attached to every
+// response — including errors — while bodies still parse for all routes.
+app.use(cors(corsOptions));
 
 // Health is public; every other router applies authMiddleware per-route.
 // Note: goal/task/focus/... routers define their own full paths

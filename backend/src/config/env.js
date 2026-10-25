@@ -15,6 +15,14 @@ const config = {
   groqApiKey: process.env.GROQ_API_KEY || '',
   groqModel: process.env.GROQ_MODEL || '',
   nodeEnv: process.env.NODE_ENV || 'development',
+  // Comma-separated allow-list, e.g.:
+  //   CORS_ORIGINS=https://grivio.vercel.app,https://grivio.com
+  // Empty in development → CORS stays permissive (emulators + Vite).
+  // Trailing slashes are stripped so entries and Origins always compare equal.
+  corsOrigins: (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean),
 };
 
 module.exports = config;

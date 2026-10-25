@@ -48,9 +48,9 @@ Improvement**
 | --- | --- |
 | Mobile | Flutter (Dart), http, flutter_secure_storage, fl_chart |
 | Backend | Node.js, Express 5, pg, bcryptjs, jsonwebtoken, dotenv |
-| Database | PostgreSQL (Neon in development) |
+| Database | PostgreSQL (Neon — shared by local dev and production) |
 | AI | Groq API — server-side only |
-| Hosting | Local development. **Render deployment: planned, not yet done** |
+| Hosting | **Backend live on Render**; web app is a static build — see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) |
 
 ## Repository structure
 
@@ -162,15 +162,14 @@ a compile-time define, so it can never leak runtime secrets into the app.
 | --- | --- |
 | Backend running locally + Neon database | ✅ done and smoke-tested |
 | Flutter app on Android emulator | ✅ done |
-| **Render (or any host) deployment** | ⬜ **planned — not implemented yet** |
-| Production API URL baked into a release build | ⬜ planned |
+| **Backend deployed on Render** | ✅ **live at `https://grivio-api.onrender.com/api`** — auto-deploys from `main` |
+| CORS allow-list (`CORS_ORIGINS`) | ✅ implemented — empty in dev (permissive), set it on Render for production |
+| Web app build verified against production API | ✅ |
+| Web host (Vercel / Netlify / static host) | ⬜ pick a host and publish `webapp/dist` |
+| Production API URL baked into a release build | ⬜ `flutter build apk --release` (production is already the default) |
 
-Planned deployment steps (not yet executed): create a Render web service for
-`backend/` (Node 18+), set `DATABASE_URL`, `JWT_SECRET`, `GROQ_API_KEY`,
-`NODE_ENV=production` in its environment, run `npm run migrate` once, then
-rebuild the app with `--dart-define=API_BASE_URL=<your-render-url>/api` and
-tighten CORS in `backend/src/app.js` (currently permissive for local
-development).
+Full step-by-step guide — environment variables, CORS, migrations, web host,
+verification checklist and rollback: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## More documentation
 
@@ -179,4 +178,5 @@ development).
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components and data flow
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — day-to-day workflow
 - [`docs/AI_FEATURES.md`](docs/AI_FEATURES.md) — the five AI features and their guardrails
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Render, CORS, environments, going live
 - [`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md) — commits, branching, pushing
