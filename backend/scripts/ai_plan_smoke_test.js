@@ -177,6 +177,44 @@ async function run() {
   r = await fetch(`${BASE}/ai/daily-plan/generate`, { method: 'POST', headers: H(t3), body: JSON.stringify(baseReq()) });
   j = await r.json();
   check('no eligible tasks → 200 empty plan', r.status === 200 && j.data.scheduledTasks.length === 0 && j.data.warnings.length > 0);
+  check('no tasks + no description → no suggestions proposed', Array.isArray(j.data.suggestedTasks) && j.data.suggestedTasks.length === 0);
+  const emptyCount = await countRows();
+
+  // 14b. No tasks + a written day description → AI PROPOSES tasks for the
+  //     user to pick. Preview only: nothing may be written to the DB, and
+  //     malformed/overflowing model entries must be dropped server-side.
+  setMock(jsonChoice({
+    tasks: [
+      { title: '  Morning   workout ', minutes: 45, priority: 'high' }, // whitespace normalized
+      { title: 'Not a task entry' },                                     // no minutes → dropped
+      { title: 42 },                                                     // non-string title → dropped
+      { title: 'Way too long for capacity', minutes: 5000, priority: 'low' }, // clamped + capacity-filtered
+      { title: 'Invented priority', minutes: 20, priority: 'urgent' },  // priority normalized to medium
+    ],
+  }));
+  const beforeSuggest = await countRows();
+  r = await fetch(`${BASE}/ai/daily-plan/generate`, { method: 'POST', headers: H(t3), body: JSON.stringify(baseReq({ dailyContext: 'Work out in the morning, then deep work.' })) });
+  j = await r.json();
+  check('no tasks + description → suggestedTasks returned',
+    r.status === 200 && Array.isArray(j.data.suggestedTasks) && j.data.suggestedTasks.length >= 1);
+  check('suggested titles sanitized', j.data.suggestedTasks.every((t) => typeof t.title === 'string' && t.title === t.title.trim() && t.title.length <= 200));
+  check('invalid suggestion entries dropped', j.data.suggestedTasks.every((t) => Number.isFinite(t.minutes) && t.minutes >= 5 && t.minutes <= 480));
+  check('suggestions fit the capacity window',
+    j.data.suggestedTasks.reduce((n, t) => n + t.minutes, 0) <= j.data.capacityMinutes);
+  check('priority never left unvalidated', j.data.suggestedTasks.every((t) => ['low', 'medium', 'high'].includes(t.priority)));
+  check('description reaches Groq in the USER prompt',
+    (lastGroqBody?.messages ?? []).some((m) => m.role === 'user' && m.content.includes('deep work')));
+  check('suggestion preview creates no DB records',
+    beforeSuggest.tasks === (await countRows()).tasks && beforeSuggest.subtasks === (await countRows()).subtasks);
+  check('suggestion path leaves schedule empty (nothing auto-saved)',
+    j.data.scheduledTasks.length === 0 && j.data.unscheduledTasks.length === 0);
+
+  // 14c. Malformed suggestion payload → safe 502, raw payload never exposed.
+  setMock(jsonChoice({ tasks: 'not an array' }));
+  r = await fetch(`${BASE}/ai/daily-plan/generate`, { method: 'POST', headers: H(t3), body: JSON.stringify(baseReq({ dailyContext: 'Anything at all.' })) });
+  j = await r.json();
+  check('malformed suggestion shape → 502 safe', r.status === 502 && !String(j.message).includes('not an array'));
+  check('empty plan warnings unchanged in count', emptyCount.tasks === (await countRows()).tasks);
 
   // 15. Existing endpoints intact + health.
   r = await fetch(`${BASE}/health`);

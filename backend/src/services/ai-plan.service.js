@@ -9,6 +9,7 @@
 const { query } = require('../config/db');
 const groqService = require('./groq.service');
 const profileService = require('./profile.service');
+const { PRIORITIES } = require('../utils/taskValidate');
 
 const MAX_CONTEXT_LENGTH = 1000; // dailyContext cap (trimmed, plain text)
 const MAX_ELIGIBLE_TASKS = 30; // bound the prompt size
@@ -117,6 +118,61 @@ async function loadEligibleTasks(userId, date) {
     category: r.category ?? null,
     goalName: r.goal_name ?? null,
   }));
+}
+
+// ---------- task suggestions (user has no open tasks) ----------
+
+const MAX_SUGGESTED_TASKS = 6;
+
+/**
+ * Proposes a short task list derived from the user's own written day
+ * description — used ONLY when they have no open tasks to schedule.
+ * PREVIEW ONLY: nothing is persisted here; the client shows the list and
+ * creates tasks through the normal POST /tasks contract only after the
+ * user explicitly picks them.
+ */
+async function suggestTasks(ctx) {
+  const systemPrompt =
+    "You are GRIVIO's daily planner. The user has no open tasks yet and described the day they want. " +
+    'Respond with ONLY valid JSON: {"tasks":[{"title":"...","minutes":30,"priority":"low|medium|high"}]}. ' +
+    `Rules: propose between 1 and ${MAX_SUGGESTED_TASKS} concrete, doable tasks that fit the description; ` +
+    `minutes must be ${MIN_TASK_MINUTES}-${MAX_TASK_MINUTES}; total minutes must not exceed ${ctx.capacity}; ` +
+    'titles must be specific and under 80 characters; priority reflects importance for this day. ' +
+    'No markdown, no commentary, no extra keys.';
+
+  const userPrompt = [
+    `AVAILABILITY: ${ctx.capacity} minutes between ${toHHMM(ctx.start)} and ${toHHMM(ctx.end)} on ${ctx.date}.`,
+    "USER'S PERSONAL DESCRIPTION OF THEIR DAY (preferences, not verified facts):",
+    ctx.dailyContext,
+  ].join('\n');
+
+  const raw = await groqService.generateJson(userPrompt, { systemPrompt, maxTokens: 900 });
+
+  // Model output is untrusted: validate every entry, drop what doesn't
+  // fit, and fail safe with a 502 only when the shape is unusable.
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.tasks)) {
+    throw aiError(502, 'AI returned a malformed task list. Please try again.');
+  }
+
+  const tasks = [];
+  let total = 0;
+  for (const entry of raw.tasks) {
+    if (tasks.length >= MAX_SUGGESTED_TASKS) break;
+    if (!entry || typeof entry.title !== 'string') continue;
+    const title = entry.title.trim().replace(/\s+/g, ' ');
+    if (!title || title.length > 200) continue;
+    const minutes = Math.round(Number(entry.minutes));
+    if (!Number.isFinite(minutes)) continue;
+    const clamped = Math.min(Math.max(minutes, MIN_TASK_MINUTES), MAX_TASK_MINUTES);
+    if (total + clamped > ctx.capacity) continue; // never propose beyond the window
+    const priority = PRIORITIES.includes(entry.priority) ? entry.priority : 'medium';
+    tasks.push({ title, minutes: clamped, priority });
+    total += clamped;
+  }
+  if (tasks.length === 0) {
+    throw aiError(502, 'AI could not suggest fitting tasks. Please try again.');
+  }
+  return tasks;
 }
 
 // ---------- request-side warnings (grounded in the actual request) ----------
@@ -300,7 +356,31 @@ async function generateDailyPlan(userId, body) {
   }
   const eligible = await loadEligibleTasks(userId, ctx.date);
   if (eligible.length === 0) {
-    // No tasks to schedule — return an honest empty plan, not an AI call.
+    // No tasks to schedule. With a written day description the model can
+    // PROPOSE tasks (preview only — the client persists nothing until the
+    // user explicitly picks them). Without a description we stay honest
+    // and return an empty plan rather than inventing tasks from nothing.
+    if (ctx.dailyContext) {
+      const suggestedTasks = await suggestTasks(ctx);
+      return {
+        date: ctx.date,
+        availableMinutes: ctx.availableMinutes,
+        startTime: toHHMM(ctx.start),
+        endTime: toHHMM(ctx.end),
+        breakMinutes: ctx.breakMinutes,
+        capacityMinutes: ctx.capacity,
+        plannedMinutes: 0,
+        remainingMinutes: ctx.capacity,
+        contextApplied: true,
+        scheduledTasks: [],
+        unscheduledTasks: [],
+        breaks: [],
+        suggestedTasks,
+        warnings: [
+          `You have no open tasks yet — review the ${suggestedTasks.length} suggested task(s) and keep the ones you want.`,
+        ],
+      };
+    }
     return {
       date: ctx.date,
       availableMinutes: ctx.availableMinutes,
@@ -310,11 +390,12 @@ async function generateDailyPlan(userId, body) {
       capacityMinutes: ctx.capacity,
       plannedMinutes: 0,
       remainingMinutes: ctx.capacity,
-      contextApplied: ctx.dailyContext.length > 0,
+      contextApplied: false,
       scheduledTasks: [],
       unscheduledTasks: [],
       breaks: [],
-      warnings: ['You have no incomplete tasks to schedule.'],
+      suggestedTasks: [],
+      warnings: ['Describe your day above and AI can suggest tasks to fill it.'],
     };
   }
 
@@ -400,6 +481,9 @@ async function generateDailyPlan(userId, body) {
     })),
     breaks: plan.breaks.map((b) => ({ start: toHHMM(b.start), end: toHHMM(b.end), minutes: b.minutes })),
     warnings,
+    // Only the "no open tasks" path above proposes tasks; a normal plan
+    // never does, so clients can rely on this key always existing.
+    suggestedTasks: [],
   };
 }
 
