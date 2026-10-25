@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../services/goal_service.dart';
 import '../services/profile_service.dart';
+import '../services/progress_service.dart';
 import '../services/task_service.dart';
+import '../widgets/effort_heatmap.dart';
 import '../widgets/neumorphic.dart';
 import 'add_task_screen.dart';
 import 'daily_planner_screen.dart';
@@ -36,6 +38,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Goal> _goals = [];
   List<Milestone> _milestones = [];
   Map<String, dynamic>? _todayReflection;
+  // Month of trend data, used only to compute the effort streak.
+  ProgressData? _progress;
   bool _loading = true;
   String? _error;
 
@@ -59,6 +63,12 @@ class _HomeScreenState extends State<HomeScreen> {
         todayReflection = await _profileService.getTodayReflection();
       } catch (_) {}
 
+      // Non-fatal: the streak chip simply hides if this fails.
+      ProgressData? progress;
+      try {
+        progress = await ProgressService().getProgress('month');
+      } catch (_) {}
+
       List<Milestone> milestones = [];
       final active = _pickActiveGoal(goals);
       if (active != null) {
@@ -72,6 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _goals = goals;
           _milestones = milestones;
           _todayReflection = todayReflection;
+          _progress = progress;
           _loading = false;
         });
       }
@@ -83,6 +94,14 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     }
+  }
+
+  /// Consecutive active days (tasks completed or focus time), ending
+  /// today or yesterday. Null when the trend data is unavailable.
+  int? get _streakDays {
+    final p = _progress;
+    if (p == null) return null;
+    return computeStreak(mergeEffort(p.taskTrend, p.focusTrend));
   }
 
   /// "Today's list": cancelled tasks never count; tasks without a due
@@ -336,9 +355,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? 'No tasks'
                       : '$completedToday of $totalToday done',
                   size: 148,
-                  strokeWidth: 9,
+                  strokeWidth: 13,
                 ),
               ),
+              const SizedBox(height: 14),
+
+              // Effort streak (consecutive active days from the month's
+              // trend data) — hidden silently when the fetch failed.
+              if (_streakDays != null)
+                Center(child: StreakBadge(days: _streakDays!)),
               const SizedBox(height: 28),
 
               // ── Today's Tasks ─────────────────────────────────────────────

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme/app_theme.dart';
 import '../services/ai_service.dart';
 import '../services/api_client.dart';
 import '../services/task_service.dart';
+import '../widgets/neumorphic.dart';
+import '../widgets/ui_kit.dart';
 
 /// AI Subtask Generator — a polished bottom sheet that turns a parent task
 /// into user-reviewable AI suggestions. Nothing is saved until the user
@@ -173,6 +176,10 @@ class _AISubtaskSheetState extends State<AISubtaskSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary = isDark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -196,18 +203,24 @@ class _AISubtaskSheetState extends State<AISubtaskSheet> {
                 ),
               ),
             ),
-            // Header
+            // Header — tactile accent mark beside the title
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
               child: Row(
                 children: [
-                  Icon(Icons.auto_awesome, color: theme.colorScheme.primary),
-                  const SizedBox(width: 8),
+                  const NeumorphicIconCircle(
+                    icon: Icons.auto_awesome_rounded,
+                    size: 44,
+                    iconSize: 20,
+                    isAccent: true,
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'AI Assist',
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
+                        letterSpacing: -0.25,
                       ),
                     ),
                   ),
@@ -220,34 +233,41 @@ class _AISubtaskSheetState extends State<AISubtaskSheet> {
                 ],
               ),
             ),
-            // Parent task context
+            // Parent task context, set into an engraved well
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.taskTitle,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (widget.taskDescription != null &&
-                      widget.taskDescription!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+              child: Neumorphic(
+                inset: true,
+                depth: 3,
+                borderRadius: AppRadius.md,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      widget.taskDescription!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.6,
-                        ),
+                      widget.taskTitle,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (widget.taskDescription != null &&
+                        widget.taskDescription!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.taskDescription!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: secondary,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
             // Scrollable content
             Expanded(
@@ -262,60 +282,76 @@ class _AISubtaskSheetState extends State<AISubtaskSheet> {
                     decoration: const InputDecoration(
                       labelText: 'Instructions (optional)',
                       hintText: 'e.g. Keep each step under 30 minutes',
+                      prefixIcon: Icon(Icons.tune_rounded, size: 20),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _loading || _saving
-                              ? null
-                              : () => _generate(
-                                  isRegenerate: _suggestions.isNotEmpty,
-                                ),
-                          icon: _loading
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.auto_awesome),
-                          label: Text(
-                            _loading
-                                ? 'Generating...'
-                                : (_suggestions.isEmpty
-                                      ? 'Generate'
-                                      : 'Regenerate'),
+                  const SizedBox(height: 14),
+                  NeumorphicButton(
+                    isAccent: true,
+                    width: double.infinity,
+                    onPressed: _loading || _saving
+                        ? null
+                        : () => _generate(
+                            isRegenerate: _suggestions.isNotEmpty,
                           ),
-                        ),
-                      ),
-                    ],
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: _loading
+                        ? const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 10),
+                              Text('Generating...'),
+                            ],
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.auto_awesome_rounded, size: 17),
+                              const SizedBox(width: 8),
+                              Text(
+                                _suggestions.isEmpty
+                                    ? 'Generate'
+                                    : 'Regenerate',
+                              ),
+                            ],
+                          ),
                   ),
                   const SizedBox(height: 16),
 
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(
-                        _error!,
-                        style: TextStyle(color: theme.colorScheme.error),
-                      ),
+                      child: ErrorPill(message: _error!),
                     ),
 
                   if (_suggestions.isEmpty && !_loading && _error == null)
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Text(
-                        'Tap Generate to break this task into steps.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.6,
+                      padding: const EdgeInsets.symmetric(vertical: 28),
+                      child: Column(
+                        children: [
+                          NeumorphicIconCircle(
+                            icon: Icons.bolt_outlined,
+                            size: 56,
+                            iconSize: 26,
+                            inset: true,
                           ),
-                        ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Tap Generate to break this task into steps.',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: secondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
 
@@ -340,16 +376,13 @@ class _AISubtaskSheetState extends State<AISubtaskSheet> {
 
             // Footer: count + actions
             Container(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: theme.dividerColor)),
               ),
               child: Row(
                 children: [
-                  Text(
-                    '$_selectedCount selected',
-                    style: theme.textTheme.bodyMedium,
-                  ),
+                  Text('$_selectedCount selected'),
                   const Spacer(),
                   TextButton(
                     onPressed: _loading || _saving
@@ -362,10 +395,15 @@ class _AISubtaskSheetState extends State<AISubtaskSheet> {
                   // width, so a long label shrinks instead of overflowing
                   // the footer on narrow screens.
                   Flexible(
-                    child: FilledButton(
+                    child: NeumorphicButton(
+                      isAccent: true,
                       onPressed: (_selectedCount == 0 || _saving || _loading)
                           ? null
                           : _addSelected,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
                       child: Text(_saving ? 'Adding...' : 'Add selected'),
                     ),
                   ),
@@ -416,17 +454,18 @@ class _SuggestionRowState extends State<_SuggestionRow> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary = isDark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
     final s = widget.suggestion;
     return Padding(
       key: widget.key,
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.dividerColor),
-        ),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Neumorphic(
+        depth: 3,
+        borderRadius: 14,
+        padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -443,7 +482,9 @@ class _SuggestionRowState extends State<_SuggestionRow> {
                 children: [
                   TextField(
                     controller: _title,
-                    style: theme.textTheme.bodyLarge,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: const InputDecoration(
                       isDense: true,
                       border: InputBorder.none,
@@ -460,9 +501,7 @@ class _SuggestionRowState extends State<_SuggestionRow> {
                       child: Text(
                         s.description!,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.6,
-                          ),
+                          color: secondary,
                         ),
                       ),
                     ),
@@ -504,13 +543,20 @@ class _SuggestionRowState extends State<_SuggestionRow> {
             // and scrolling to their normal gestures.
             ReorderableDragStartListener(
               index: widget.index,
-              child: Icon(
-                Icons.drag_handle,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Icon(
+                  Icons.drag_handle,
+                  color: secondary.withValues(alpha: 0.55),
+                ),
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.close, size: 18),
+              icon: Icon(
+                Icons.close,
+                size: 18,
+                color: secondary.withValues(alpha: 0.75),
+              ),
               onPressed: widget.onRemove,
             ),
           ],

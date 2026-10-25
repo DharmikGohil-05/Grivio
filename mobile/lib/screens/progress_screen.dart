@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
 import '../services/progress_service.dart';
+import '../widgets/effort_heatmap.dart';
 import '../widgets/neumorphic.dart';
+import '../widgets/ui_kit.dart';
 import 'weekly_review_screen.dart';
 
-/// Progress screen — personal activity and growth summary report.
+/// Progress screen — personal activity and growth summary report:
+/// effort heatmap + streak, animated summary stats, animated trends and
+/// goal progress cards, all on the neumorphic system.
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
 
@@ -65,6 +69,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final secondary = isDark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
+    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Progress')),
@@ -80,25 +88,20 @@ class _ProgressScreenState extends State<ProgressScreen> {
           children: [
             Text(
               'See how your work and habits are compounding.',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 13,
-                color: isDark
-                    ? AppColors.darkSecondaryText
-                    : AppColors.lightSecondaryText,
-              ),
+              style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: secondary),
             ),
             const SizedBox(height: 16),
 
-            // Range selector
+            // Range selector — tactile chips instead of Material ChoiceChips.
             Wrap(
               spacing: 8,
               children: _ranges.entries.map((e) {
                 final selected = _range == e.key;
-                return ChoiceChip(
-                  label: Text(e.value),
+                return NeumorphicChip(
+                  label: e.value,
                   selected: selected,
-                  onSelected: (_) {
+                  onTap: () {
+                    if (_range == e.key) return;
                     setState(() => _range = e.key);
                     _load();
                   },
@@ -130,15 +133,53 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ),
               )
             else if (_data != null) ...[
+              // Effort heatmap + streak — the "how much am I actually
+              // putting in" view, merged client-side from the trend data.
+              StaggeredIn(
+                child: Row(
+                  children: [
+                    StreakBadge(
+                      days: computeStreak(
+                        mergeEffort(_data!.taskTrend, _data!.focusTrend),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      _range == 'week'
+                          ? 'This week'
+                          : _range == 'month'
+                          ? 'This month'
+                          : 'Last 3 months',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        color: secondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              StaggeredIn(
+                delay: const Duration(milliseconds: 80),
+                child: EffortHeatmap(
+                  effortByDay: mergeEffort(_data!.taskTrend, _data!.focusTrend),
+                ),
+              ),
+              const SizedBox(height: 24),
+
               // 2x2 Summary Metric Grid
-              _SummaryGrid(summary: _data!.summary),
+              StaggeredIn(
+                delay: const Duration(milliseconds: 140),
+                child: _SummaryGrid(summary: _data!.summary),
+              ),
               const SizedBox(height: 24),
 
               // Task Completion Trend
               const SectionLabel('Task completion'),
               _TrendChart(
                 points: _data!.taskTrend,
-                color: isDark ? AppColors.darkAccent : AppColors.lightAccent,
+                color: accent,
                 emptyText: 'Complete a task to build your trend history.',
                 isLine: true,
               ),
@@ -148,7 +189,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
               const SectionLabel('Focus time'),
               _TrendChart(
                 points: _data!.focusTrend,
-                color: isDark ? AppColors.darkAccent : AppColors.lightAccent,
+                color: accent,
                 emptyText: 'Complete a focus session to see focus trends.',
                 unit: 'min',
               ),
@@ -165,9 +206,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 13,
-                      color: isDark
-                          ? AppColors.darkMutedText
-                          : AppColors.lightSecondaryText,
+                      color: secondary,
                     ),
                   ),
                 )
@@ -186,9 +225,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 13,
-                      color: isDark
-                          ? AppColors.darkMutedText
-                          : AppColors.lightSecondaryText,
+                      color: secondary,
                     ),
                   ),
                 )
@@ -209,9 +246,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: isDark
-                                    ? AppColors.darkAccent
-                                    : AppColors.lightAccent,
+                                color: accent,
                               ),
                             ),
                             Expanded(
@@ -237,66 +272,61 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
               // Weekly Review Banner — entry point to the Weekly Review
               // screen (weekly stats, reflection form, AI Growth Review).
-              InkWell(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const WeeklyReviewScreen()),
-                ),
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                child: Neumorphic(
-                  padding: const EdgeInsets.all(16),
-                  borderRadius: AppRadius.lg,
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color:
-                              (isDark
-                                      ? AppColors.darkAccent
-                                      : AppColors.lightAccent)
-                                  .withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
+              StaggeredIn(
+                delay: const Duration(milliseconds: 200),
+                child: InkWell(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const WeeklyReviewScreen()),
+                  ),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  child: Neumorphic(
+                    padding: const EdgeInsets.all(16),
+                    borderRadius: AppRadius.lg,
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                          ),
+                          child: Icon(
+                            Icons.auto_stories_outlined,
+                            size: 20,
+                            color: accent,
+                          ),
                         ),
-                        child: Icon(
-                          Icons.auto_stories_outlined,
-                          size: 20,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Weekly Review',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Reflect on your achievements and areas to improve →',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 12,
+                                  color: accent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
                           color: isDark
-                              ? AppColors.darkAccent
-                              : AppColors.lightAccent,
+                              ? AppColors.darkMutedText
+                              : AppColors.lightMutedText,
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Weekly Review',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Reflect on your achievements and areas to improve →',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 12,
-                                color: isDark
-                                    ? AppColors.darkAccent
-                                    : AppColors.lightAccent,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right,
-                        color: isDark
-                            ? AppColors.darkMutedText
-                            : AppColors.lightMutedText,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -312,31 +342,61 @@ class _SummaryGrid extends StatelessWidget {
   const _SummaryGrid({required this.summary});
   final ProgressSummary summary;
 
-  String _focus() {
-    final h = summary.focusMinutes ~/ 60;
-    final m = summary.focusMinutes % 60;
-    return h > 0 ? '${h}h ${m}m' : '${m}m';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
+    final labelColor = isDark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
 
-    final items = [
-      (
-        'Tasks completed',
-        '${summary.tasksCompleted}',
-        Icons.check_circle_outline,
-      ),
-      ('Focus time', _focus(), Icons.timer_outlined),
-      (
-        'Completion rate',
-        '${summary.completionRate}%',
-        Icons.trending_up_rounded,
-      ),
-      ('Active goals', '${summary.activeGoals}', Icons.flag_outlined),
-    ];
+    final numberStyle = theme.textTheme.headlineSmall?.copyWith(
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.5,
+    );
+
+    String focus(int minutes) {
+      final h = minutes ~/ 60;
+      final m = minutes % 60;
+      return h > 0 ? '${h}h ${m}m' : '${m}m';
+    }
+
+    Widget cell(
+      String label,
+      Widget valueWidget,
+      IconData icon,
+    ) {
+      return Neumorphic(
+        padding: const EdgeInsets.all(12),
+        borderRadius: AppRadius.md,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 16, color: accent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      color: labelColor,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            valueWidget,
+          ],
+        ),
+      );
+    }
 
     return GridView.count(
       crossAxisCount: 2,
@@ -345,51 +405,32 @@ class _SummaryGrid extends StatelessWidget {
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
       childAspectRatio: 1.8,
-      children: items.map((it) {
-        return Neumorphic(
-          padding: const EdgeInsets.all(12),
-          borderRadius: AppRadius.md,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    it.$3,
-                    size: 16,
-                    color: isDark
-                        ? AppColors.darkAccent
-                        : AppColors.lightAccent,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      it.$1,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 11,
-                        color: isDark
-                            ? AppColors.darkSecondaryText
-                            : AppColors.lightSecondaryText,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                it.$2,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ],
+      children: [
+        cell(
+          'Tasks completed',
+          AnimatedCountUp(value: summary.tasksCompleted, format: (v) => '$v', style: numberStyle),
+          Icons.check_circle_outline,
+        ),
+        cell(
+          'Focus time',
+          AnimatedCountUp(value: summary.focusMinutes, format: focus, style: numberStyle),
+          Icons.timer_outlined,
+        ),
+        cell(
+          'Completion rate',
+          AnimatedCountUp(
+            value: summary.completionRate,
+            format: (v) => '$v%',
+            style: numberStyle,
           ),
-        );
-      }).toList(),
+          Icons.trending_up_rounded,
+        ),
+        cell(
+          'Active goals',
+          AnimatedCountUp(value: summary.activeGoals, format: (v) => '$v', style: numberStyle),
+          Icons.flag_outlined,
+        ),
+      ],
     );
   }
 }
@@ -413,6 +454,7 @@ class _TrendChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final cyan = isDark ? AppColors.darkCyan : AppColors.lightCyan;
 
     if (points.isEmpty) {
       return Neumorphic(
@@ -449,12 +491,19 @@ class _TrendChart extends StatelessWidget {
       color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
     );
 
+    // fl_chart's duration/curve animate data changes (range switches,
+    // refetches), so the chart morphs instead of snapping.
+    const chartDuration = Duration(milliseconds: 700);
+    const chartCurve = Curves.easeOutCubic;
+
     return Neumorphic(
       height: 190,
       padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
       borderRadius: AppRadius.lg,
       child: isLine
           ? LineChart(
+              duration: chartDuration,
+              curve: chartCurve,
               LineChartData(
                 minY: 0,
                 maxY: maxY * 1.2,
@@ -499,6 +548,25 @@ class _TrendChart extends StatelessWidget {
                     ),
                   ),
                 ),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (spots) => spots
+                        .map(
+                          (s) => LineTooltipItem(
+                            '${points[s.x.toInt()].value}${unit == null ? '' : ' $unit'}',
+                            TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? AppColors.darkPrimaryText
+                                  : AppColors.lightPrimaryText,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
                 lineBarsData: [
                   LineChartBarData(
                     spots: points
@@ -513,23 +581,31 @@ class _TrendChart extends StatelessWidget {
                         .toList(),
                     isCurved: true,
                     curveSmoothness: 0.25,
-                    color: color,
+                    // Indigo → cyan stroke (left to right), mirroring the
+                    // web trend chart's gradient line.
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [color, cyan],
+                    ),
                     barWidth: 3,
                     dotData: FlDotData(
                       show: true,
                       getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
                         radius: 3.5,
-                        color: color,
+                        color: cyan,
                         strokeWidth: 0,
                       ),
                     ),
                     belowBarData: BarAreaData(
                       show: true,
+                      // Cyan fading into the accent — same area fill the
+                      // web trend chart uses.
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          color.withValues(alpha: 0.25),
+                          cyan.withValues(alpha: 0.34),
                           color.withValues(alpha: 0.02),
                         ],
                       ),
@@ -539,10 +615,19 @@ class _TrendChart extends StatelessWidget {
               ),
             )
           : BarChart(
+              duration: chartDuration,
+              curve: chartCurve,
               BarChartData(
                 maxY: maxY * 1.2,
                 borderData: FlBorderData(show: false),
-                gridData: FlGridData(show: false),
+                // Value gridlines match the web chart frame.
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: maxY > 0 ? maxY / 3 : 1,
+                  getDrawingHorizontalLine: (_) =>
+                      FlLine(color: gridColor, strokeWidth: 1),
+                ),
                 titlesData: FlTitlesData(
                   topTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
@@ -576,16 +661,33 @@ class _TrendChart extends StatelessWidget {
                     ),
                   ),
                 ),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipItem: (group, _, rod, __) => BarTooltipItem(
+                      '${rod.toY.toInt()}${unit == null ? '' : ' $unit'}',
+                      TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? AppColors.darkPrimaryText
+                            : AppColors.lightPrimaryText,
+                      ),
+                    ),
+                  ),
+                ),
                 barGroups: points.asMap().entries.map((e) {
                   return BarChartGroupData(
                     x: e.key,
                     barRods: [
                       BarChartRodData(
                         toY: e.value.value.toDouble(),
+                        // Cyan at the top fading into indigo at the base —
+                        // the reference bar treatment (same as the web).
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [color, color.withValues(alpha: 0.55)],
+                          colors: [cyan, color],
                         ),
                         width: 14,
                         borderRadius: BorderRadius.circular(4),
@@ -614,18 +716,17 @@ class _GoalProgressCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
+    final secondary = isDark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
+      child: Neumorphic(
+        depth: 4,
+        borderRadius: AppRadius.md,
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(
-            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          ),
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -644,41 +745,28 @@ class _GoalProgressCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                Text(
-                  '${goal.progress}%',
+                AnimatedCountUp(
+                  value: goal.progress,
+                  format: (v) => '$v%',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: isDark
-                        ? AppColors.darkAccent
-                        : AppColors.lightAccent,
+                    color: accent,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: LinearProgressIndicator(
-                value: goal.progress / 100,
-                minHeight: 6,
-                backgroundColor: isDark
-                    ? AppColors.darkProgressTrack
-                    : AppColors.lightSecondarySurface,
-                color: isDark ? AppColors.darkAccent : AppColors.lightAccent,
-              ),
-            ),
+            const SizedBox(height: 10),
+            AnimatedProgressBar(value: goal.progress / 100),
             if (goal.targetDate != null) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 'Target ${goal.targetDate!.month}/${goal.targetDate!.day}/${goal.targetDate!.year}',
                 style: TextStyle(
                   fontFamily: 'Inter',
                   fontSize: 11,
-                  color: isDark
-                      ? AppColors.darkMutedText
-                      : AppColors.lightSecondaryText,
+                  color: secondary,
                 ),
               ),
             ],

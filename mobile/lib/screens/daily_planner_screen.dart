@@ -39,6 +39,9 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
   bool _dirty = false;
   int _eligibleCount = 0;
   String? _error;
+  // Indices of AI-suggested tasks the user wants to keep (all on by
+  // default). Nothing exists until they press "Add selected".
+  final Set<int> _picked = {};
 
   @override
   void initState() {
@@ -125,6 +128,15 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
       setState(() {
         _plan = plan;
         _dirty = false;
+        // Suggestions start fully ticked — the user unticks what they don't
+        // want; a normal plan clears the selection.
+        _picked
+          ..clear()
+          ..addAll(
+            plan.suggestedTasks.isEmpty
+                ? const <int>{}
+                : Iterable.generate(plan.suggestedTasks.length),
+          );
       });
     } on ApiException catch (e) {
       if (mounted) {
@@ -144,6 +156,54 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
       if (mounted) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  /// Creates ONLY the ticked AI suggestions through the normal task
+  /// endpoint (one real POST per task — the single step that persists
+  /// anything), then re-runs the planner so the schedule is built from
+  /// the tasks that now really exist.
+  Future<void> _acceptSuggestions() async {
+    final plan = _plan;
+    if (plan == null || _picked.isEmpty || _loading || _accepting) return;
+    setState(() {
+      _accepting = true;
+      _error = null;
+    });
+    try {
+      for (var i = 0; i < plan.suggestedTasks.length; i++) {
+        if (!_picked.contains(i)) continue;
+        final s = plan.suggestedTasks[i];
+        await TaskService().createTask({
+          'title': s.title,
+          'priority': s.priority,
+          'estimatedMinutes': s.minutes,
+          'dueDate': plan.date,
+        });
+      }
+      _picked.clear();
+      if (!mounted) return;
+      // Release the guard first: _generate() refuses to run while
+      // _accepting is true, and we need it to build the real schedule.
+      setState(() => _accepting = false);
+      await _generate();
+      _countEligibleTasks();
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(
+          () => _error = e.statusCode == 401
+              ? 'Your session expired. Please sign in again.'
+              : 'Could not add the selected tasks: ${e.message}',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = 'Could not add the selected tasks. Check your connection.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _accepting = false);
     }
   }
 
@@ -427,6 +487,12 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
   }
 
   List<Widget> _buildPlan(ThemeData theme, DailyPlan plan, bool isDark) {
+    // The AI proposed tasks because there was nothing to schedule — show
+    // a picker instead of a (always empty) timeline. Nothing exists yet:
+    // tasks are only created when the user presses the button below.
+    if (plan.suggestedTasks.isNotEmpty) {
+      return _buildSuggestions(theme, plan, isDark);
+    }
     return [
       // Summary Totals
       Neumorphic(
@@ -616,6 +682,128 @@ class _DailyPlannerScreenState extends State<DailyPlannerScreen> {
                     )
                   : const Icon(Icons.check_rounded),
               label: Text(_accepting ? 'Accepting...' : 'Accept plan'),
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  /// Picker for AI-proposed tasks (shown when the user had nothing to
+  /// schedule). Ticking is purely local until "Add selected" persists the
+  /// chosen tasks through the normal create-task endpoint.
+  List<Widget> _buildSuggestions(
+    ThemeData theme,
+    DailyPlan plan,
+    bool isDark,
+  ) {
+    final mutedColor = isDark
+        ? AppColors.darkMutedText
+        : AppColors.lightSecondaryText;
+    final surfaceColor = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return [
+      Neumorphic(
+        padding: const EdgeInsets.all(12),
+        borderRadius: AppRadius.md,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'AI suggested ${plan.suggestedTasks.length} task${plan.suggestedTasks.length == 1 ? '' : 's'}',
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'You have no open tasks yet. Nothing is saved until you pick the ones you want and add them.',
+              style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: mutedColor),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      for (var i = 0; i < plan.suggestedTasks.length; i++)
+        Container(
+          key: ValueKey('suggestion_$i'),
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            children: [
+              Checkbox(
+                value: _picked.contains(i),
+                onChanged: (v) => setState(() {
+                  if (v == true) {
+                    _picked.add(i);
+                  } else {
+                    _picked.remove(i);
+                  }
+                }),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      plan.suggestedTasks[i].title,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      '${plan.suggestedTasks[i].minutes} min · ${plan.suggestedTasks[i].priority}',
+                      style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: mutedColor),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _loading || _accepting
+                  ? null
+                  : () => setState(() {
+                        _plan = null;
+                        _picked.clear();
+                      }),
+              child: const Text('Start over'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: FilledButton.icon(
+              onPressed: _picked.isEmpty || _loading || _accepting
+                  ? null
+                  : _acceptSuggestions,
+              icon: _accepting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_task, size: 18),
+              label: Text(
+                _accepting
+                    ? 'Adding...'
+                    : 'Add ${_picked.length} selected & plan',
+              ),
             ),
           ),
         ],

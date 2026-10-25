@@ -182,8 +182,10 @@ class GrivioWordmark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Brand gradient: indigo → supporting cyan, the same treatment the
+    // web wordmark uses.
     final from = isDark ? AppColors.darkAccent : AppColors.lightAccent;
-    final to = isDark ? AppColors.darkAccentPressed : AppColors.lightAccentPressed;
+    final to = isDark ? AppColors.darkCyan : AppColors.lightCyan;
 
     // The text itself is drawn white; the ShaderMask then replaces those
     // pixels with the accent gradient, so the gradient only tints the
@@ -428,6 +430,38 @@ class _LoadingDotsState extends State<LoadingDots>
           }),
         );
       },
+    );
+  }
+}
+
+/// Animated count-up number: eases from zero (or the previous value) to
+/// [value], formatting each frame through [format]. Gives summary stats
+/// and progress percentages a "the numbers are alive" feel.
+class AnimatedCountUp extends StatelessWidget {
+  const AnimatedCountUp({
+    super.key,
+    required this.value,
+    required this.format,
+    required this.style,
+    this.duration = const Duration(milliseconds: 900),
+  });
+
+  final int value;
+
+  /// Called every animation frame with the current (rounded) value.
+  final String Function(int) format;
+
+  final TextStyle? style;
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: value.toDouble()),
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      builder: (context, v, _) =>
+          Text(format(v.round()), style: style),
     );
   }
 }

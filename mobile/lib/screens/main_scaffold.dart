@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../core/theme/app_theme.dart';
+import '../widgets/neumorphic_nav_bar.dart';
 import '../widgets/ui_kit.dart';
 import 'focus_screen.dart';
 import 'goals_screen.dart';
@@ -24,7 +24,6 @@ class _MainScaffoldState extends State<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     final pages = [
       const HomeScreen(),
@@ -47,63 +46,11 @@ class _MainScaffoldState extends State<MainScaffold> {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-          border: Border(
-            top: BorderSide(
-              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              width: 1,
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isDark
-                  ? Colors.black.withValues(alpha: 0.35)
-                  : AppColors.lightShadowDark.withValues(alpha: 0.45),
-              offset: const Offset(0, -4),
-              blurRadius: 14,
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: NavigationBar(
-            selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            indicatorColor: isDark
-                ? AppColors.darkAccentSurface
-                : AppColors.lightAccentSurface,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.flag_outlined),
-                selectedIcon: Icon(Icons.flag_rounded),
-                label: 'Goals',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.timer_outlined),
-                selectedIcon: Icon(Icons.timer_rounded),
-                label: 'Focus',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.insights_outlined),
-                selectedIcon: Icon(Icons.insights_rounded),
-                label: 'Progress',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person_rounded),
-                label: 'Profile',
-              ),
-            ],
-          ),
-        ),
+      // Neumorphic raised pill with an inset active tab — same 5
+      // destinations, same routing; SafeArea is handled inside the widget.
+      bottomNavigationBar: GrivioBottomNav(
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
       ),
     );
   }

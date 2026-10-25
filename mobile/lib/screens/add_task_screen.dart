@@ -4,11 +4,14 @@ import '../core/theme/app_theme.dart';
 import '../services/api_client.dart';
 import '../services/goal_service.dart';
 import '../services/task_service.dart';
+import '../widgets/neumorphic.dart';
+import '../widgets/ui_kit.dart';
 import 'ai_improve_sheet.dart';
 import 'ai_subtask_sheet.dart';
 
-/// Add Task screen with title, description, due date picker, priority,
-/// duration, category, and optional goal context.
+/// Add Task screen — tactile neumorphic form with title, description, due
+/// date picker, duration, chip-based priority & category pickers, and
+/// optional goal/milestone context, plus the two AI-assisted create paths.
 class AddTaskScreen extends StatefulWidget {
   const AddTaskScreen({super.key});
 
@@ -157,163 +160,361 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final secondary = theme.brightness == Brightness.dark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
+
+    String label(String s) => s[0].toUpperCase() + s.substring(1);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('New Task')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.pagePadding),
+      // AmbientBackground paints the whole screen; see add_goal_screen.
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('New Task'),
+      ),
+      body: Stack(
         children: [
-          TextField(
-            controller: _title,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Task title'),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _description,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Description (optional)',
-            ),
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: _pickDate,
-            icon: const Icon(Icons.calendar_today_outlined, size: 18),
-            label: Text(
-              _dueDate == null
-                  ? 'Set due date'
-                  : 'Due: ${_dueDate!.month}/${_dueDate!.day}/${_dueDate!.year}',
-            ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _priority,
-            decoration: const InputDecoration(labelText: 'Priority'),
-            items: _priorities
-                .map(
-                  (p) => DropdownMenuItem(
-                    value: p,
-                    child: Text(p[0].toUpperCase() + p.substring(1)),
+          const AmbientBackground(),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.pagePadding,
+                  vertical: 8,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // ── Details card ──────────────────────────────────
+                      StaggeredIn(
+                        child: Neumorphic(
+                          borderRadius: 24,
+                          depth: 8,
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  const NeumorphicIconCircle(
+                                    icon: Icons.add_task_rounded,
+                                    size: 52,
+                                    iconSize: 24,
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'What needs doing?',
+                                          style: theme
+                                              .textTheme
+                                              .titleLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                letterSpacing: -0.25,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Small steps keep goals moving.',
+                                          style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 13,
+                                            color: secondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 24),
+                              TextField(
+                                controller: _title,
+                                autofocus: true,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'Task title',
+                                  prefixIcon: Icon(
+                                    Icons.edit_outlined,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: _description,
+                                maxLines: 3,
+                                decoration: const InputDecoration(
+                                  labelText: 'Description (optional)',
+                                  prefixIcon: Icon(
+                                    Icons.notes_outlined,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              NeumorphicTapRow(
+                                icon: Icons.calendar_today_outlined,
+                                label: 'Set due date',
+                                value: _dueDate == null
+                                    ? null
+                                    : 'Due: ${_dueDate!.month}/${_dueDate!.day}/${_dueDate!.year}',
+                                onTap: _pickDate,
+                              ),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: _duration,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  labelText: 'Estimated duration (minutes)',
+                                  prefixIcon: Icon(
+                                    Icons.schedule_outlined,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Organize card ─────────────────────────────────
+                      StaggeredIn(
+                        delay: const Duration(milliseconds: 100),
+                        child: Neumorphic(
+                          borderRadius: 24,
+                          depth: 8,
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'PRIORITY',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.8,
+                                  color: secondary,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final p in _priorities)
+                                    NeumorphicChip(
+                                      label: label(p),
+                                      selected: _priority == p,
+                                      onTap: () =>
+                                          setState(() => _priority = p),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'CATEGORY',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.8,
+                                  color: secondary,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final c in _categories)
+                                    NeumorphicChip(
+                                      label: c,
+                                      selected: _category == c,
+                                      onTap: () =>
+                                          setState(() => _category = c),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              DropdownButtonFormField<String>(
+                                value: _goalId,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Goal (optional)',
+                                  prefixIcon: Icon(
+                                    Icons.flag_outlined,
+                                    size: 20,
+                                  ),
+                                ),
+                                items: [
+                                  const DropdownMenuItem<String>(
+                                    value: null,
+                                    child: Text('None'),
+                                  ),
+                                  ..._goals.map(
+                                    (g) => DropdownMenuItem(
+                                      value: g.id,
+                                      child: Text(
+                                        g.name,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: _onGoalChanged,
+                              ),
+                              if (_goalId != null) ...[
+                                const SizedBox(height: 16),
+                                DropdownButtonFormField<String>(
+                                  value: _milestoneId,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Milestone (optional)',
+                                    prefixIcon: Icon(
+                                      Icons.outlined_flag_rounded,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<String>(
+                                      value: null,
+                                      child: Text('None'),
+                                    ),
+                                    ..._milestones.map(
+                                      (m) => DropdownMenuItem(
+                                        value: m.id,
+                                        child: Text(
+                                          m.title,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (v) =>
+                                      setState(() => _milestoneId = v),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      if (_error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 14),
+                          child: ErrorPill(message: _error!),
+                        ),
+                      const SizedBox(height: 24),
+
+                      // ── Actions ───────────────────────────────────────
+                      StaggeredIn(
+                        delay: const Duration(milliseconds: 200),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            NeumorphicButton(
+                              isAccent: true,
+                              width: double.infinity,
+                              onPressed: _saving ? null : _save,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: _saving
+                                  ? const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text('Creating task...'),
+                                      ],
+                                    )
+                                  : const Text('Create Task'),
+                            ),
+                            const SizedBox(height: 12),
+                            NeumorphicButton(
+                              width: double.infinity,
+                              onPressed: _saving ? null : _saveWithAI,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.auto_awesome, size: 17),
+                                  SizedBox(width: 8),
+                                  Text('Create with AI Subtasks'),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            NeumorphicButton(
+                              width: double.infinity,
+                              onPressed: _saving
+                                  ? null
+                                  : () => showModalBottomSheet<bool>(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        builder: (_) => AIImproveSheet(
+                                          taskId: null,
+                                          title: _title.text.trim(),
+                                          description:
+                                              _description.text.trim(),
+                                          unsavedMode: true,
+                                          onApplySuggestion: (s) {
+                                            if ((s.title ?? '').isNotEmpty) {
+                                              _title.text = s.title!;
+                                            }
+                                            if (s.description != null) {
+                                              _description.text =
+                                                  s.description!;
+                                            }
+                                            if (s.priority != null) {
+                                              _priority = s.priority!;
+                                            }
+                                            if (s.category != null) {
+                                              _category = s.category!;
+                                            }
+                                            if (s.estimatedMinutes != null) {
+                                              _duration.text =
+                                                  s.estimatedMinutes
+                                                      .toString();
+                                            }
+                                            setState(() {});
+                                          },
+                                        ),
+                                      ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.auto_fix_high, size: 17),
+                                  SizedBox(width: 8),
+                                  Text('Improve Task with AI'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                )
-                .toList(),
-            onChanged: (v) => setState(() => _priority = v!),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _duration,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Estimated duration (minutes)',
-              prefixIcon: Icon(Icons.schedule_outlined, size: 20),
-            ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _category,
-            decoration: const InputDecoration(labelText: 'Category'),
-            items: _categories
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                .toList(),
-            onChanged: (v) => setState(() => _category = v!),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _goalId,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Goal (optional)'),
-            items: [
-              const DropdownMenuItem<String>(value: null, child: Text('None')),
-              ..._goals.map(
-                (g) => DropdownMenuItem(
-                  value: g.id,
-                  child: Text(g.name, overflow: TextOverflow.ellipsis),
                 ),
               ),
-            ],
-            onChanged: _onGoalChanged,
-          ),
-          if (_goalId != null) ...[
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _milestoneId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Milestone (optional)',
-              ),
-              items: [
-                const DropdownMenuItem<String>(
-                  value: null,
-                  child: Text('None'),
-                ),
-                ..._milestones.map(
-                  (m) => DropdownMenuItem(
-                    value: m.id,
-                    child: Text(m.title, overflow: TextOverflow.ellipsis),
-                  ),
-                ),
-              ],
-              onChanged: (v) => setState(() => _milestoneId = v),
             ),
-          ],
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 13,
-                color: isDark ? AppColors.darkError : AppColors.lightError,
-              ),
-            ),
-          ],
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _saving ? null : _save,
-            child: Text(_saving ? 'Creating task...' : 'Create Task'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: _saving ? null : _saveWithAI,
-            icon: const Icon(Icons.auto_awesome, size: 18),
-            label: const Text('Create with AI Subtasks'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: _saving
-                ? null
-                : () => showModalBottomSheet<bool>(
-                    context: context,
-                    isScrollControlled: true,
-                    builder: (_) => AIImproveSheet(
-                      taskId: null,
-                      title: _title.text.trim(),
-                      description: _description.text.trim(),
-                      unsavedMode: true,
-                      onApplySuggestion: (s) {
-                        if ((s.title ?? '').isNotEmpty) {
-                          _title.text = s.title!;
-                        }
-                        if (s.description != null) {
-                          _description.text = s.description!;
-                        }
-                        if (s.priority != null) {
-                          _priority = s.priority!;
-                        }
-                        if (s.category != null) {
-                          _category = s.category!;
-                        }
-                        if (s.estimatedMinutes != null) {
-                          _duration.text = s.estimatedMinutes.toString();
-                        }
-                        setState(() {});
-                      },
-                    ),
-                  ),
-            icon: const Icon(Icons.auto_fix_high, size: 18),
-            label: const Text('Improve Task with AI'),
           ),
         ],
       ),

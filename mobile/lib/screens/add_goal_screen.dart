@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../services/api_client.dart';
 import '../services/goal_service.dart';
+import '../widgets/neumorphic.dart';
+import '../widgets/ui_kit.dart';
 
-/// Add Goal screen with name, why it matters, target date, and growth area.
+/// Add Goal screen — a tactile neumorphic form: inset title/motivation
+/// fields, an engraved date-picker row, a growth-area chip selector and a
+/// raised accent action, all over the ambient background.
 class AddGoalScreen extends StatefulWidget {
   const AddGoalScreen({super.key});
 
@@ -77,65 +81,175 @@ class _AddGoalScreenState extends State<AddGoalScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final secondary = theme.brightness == Brightness.dark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('New Goal')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.pagePadding),
+      // The body's AmbientBackground paints the whole screen (it must
+      // extend behind the transparent AppBar, or the status-bar area
+      // would be left as a transparent hole).
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('New Goal'),
+      ),
+      body: Stack(
         children: [
-          TextField(
-            controller: _name,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Goal title'),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _why,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Why is this goal important? (optional)',
-              hintText:
-                  'e.g. This will allow me to transition into engineering leadership.',
-            ),
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: _pickDate,
-            icon: const Icon(Icons.calendar_today_outlined, size: 18),
-            label: Text(
-              _targetDate == null
-                  ? 'Set a target completion date'
-                  : 'Target: ${_targetDate!.month}/${_targetDate!.day}/${_targetDate!.year}',
-            ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _growthArea,
-            decoration: const InputDecoration(
-              labelText: 'Growth area',
-              prefixIcon: Icon(Icons.track_changes_outlined, size: 20),
-            ),
-            items: _areas
-                .map((a) => DropdownMenuItem(value: a, child: Text(a)))
-                .toList(),
-            onChanged: (v) => setState(() => _growthArea = v),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 13,
-                color: isDark ? AppColors.darkError : AppColors.lightError,
+          const AmbientBackground(),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.pagePadding,
+                  vertical: 8,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: StaggeredIn(
+                    child: Neumorphic(
+                      borderRadius: 24,
+                      depth: 8,
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // ── Hero ──────────────────────────────────────────
+                          Row(
+                            children: [
+                              const NeumorphicIconCircle(
+                                icon: Icons.flag_rounded,
+                                size: 52,
+                                iconSize: 24,
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Set a direction',
+                                      style: theme.textTheme.titleLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: -0.25,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Name it, anchor it to why it matters.',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 13,
+                                        color: secondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // ── Fields ────────────────────────────────────────
+                          TextField(
+                            controller: _name,
+                            autofocus: true,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'Goal title',
+                              prefixIcon: Icon(Icons.flag_outlined, size: 20),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _why,
+                            maxLines: 3,
+                            decoration: const InputDecoration(
+                              labelText: 'Why is this goal important?',
+                              hintText:
+                                  'e.g. This will allow me to transition into engineering leadership.',
+                              prefixIcon: Icon(
+                                Icons.favorite_outline,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          NeumorphicTapRow(
+                            icon: Icons.calendar_today_outlined,
+                            label: 'Set a target completion date',
+                            value: _targetDate == null
+                                ? null
+                                : 'Target: ${_targetDate!.month}/${_targetDate!.day}/${_targetDate!.year}',
+                            onTap: _pickDate,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // ── Growth area chips ─────────────────────────────
+                          Text(
+                            'GROWTH AREA',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.8,
+                              color: secondary,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final area in _areas)
+                                NeumorphicChip(
+                                  label: area,
+                                  selected: _growthArea == area,
+                                  onTap: () => setState(() =>
+                                      _growthArea =
+                                          _growthArea == area ? null : area),
+                                ),
+                            ],
+                          ),
+
+                          if (_error != null) ...[
+                            const SizedBox(height: 18),
+                            ErrorPill(message: _error!),
+                          ],
+                          const SizedBox(height: 24),
+                          NeumorphicButton(
+                            isAccent: true,
+                            width: double.infinity,
+                            onPressed: _saving ? null : _save,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: _saving
+                                ? const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      SizedBox(width: 10),
+                                      Text('Creating goal...'),
+                                    ],
+                                  )
+                                : const Text('Create Goal'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ],
-          const SizedBox(height: 28),
-          FilledButton(
-            onPressed: _saving ? null : _save,
-            child: Text(_saving ? 'Creating goal...' : 'Create Goal'),
           ),
         ],
       ),

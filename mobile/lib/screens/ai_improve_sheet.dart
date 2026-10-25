@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme/app_theme.dart';
 import '../services/ai_service.dart';
 import '../services/api_client.dart';
 import '../services/task_service.dart';
+import '../widgets/neumorphic.dart';
+import '../widgets/ui_kit.dart';
 
 /// Feature A (Phase 13) — AI Task Improvement bottom sheet.
 ///
@@ -220,6 +223,10 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary = isDark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final originalTitle = widget.title;
 
@@ -244,18 +251,24 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                 ),
               ),
             ),
-            // Header
+            // Header — tactile accent mark beside the title
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
               child: Row(
                 children: [
-                  Icon(Icons.auto_fix_high, color: theme.colorScheme.primary),
-                  const SizedBox(width: 8),
+                  const NeumorphicIconCircle(
+                    icon: Icons.auto_fix_high_rounded,
+                    size: 44,
+                    iconSize: 20,
+                    isAccent: true,
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Improve task',
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
+                        letterSpacing: -0.25,
                       ),
                     ),
                   ),
@@ -268,40 +281,50 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                 ],
               ),
             ),
-            // Original task for comparison
+            // Original task for comparison, set into an engraved well
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Original',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.55,
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+              child: Neumorphic(
+                inset: true,
+                depth: 3,
+                borderRadius: AppRadius.md,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ORIGINAL',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.8,
+                        color: secondary,
                       ),
                     ),
-                  ),
-                  Text(
-                    originalTitle,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (widget.description != null &&
-                      widget.description!.isNotEmpty)
+                    const SizedBox(height: 3),
                     Text(
-                      widget.description!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.6,
+                      originalTitle,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (widget.description != null &&
+                        widget.description!.isNotEmpty)
+                      Text(
+                        widget.description!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: secondary,
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Expanded(
               child: ListView(
                 controller: scrollController,
@@ -313,47 +336,74 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                     decoration: const InputDecoration(
                       labelText: 'Instructions (optional)',
                       hintText: 'e.g. Make this practical for a beginner',
+                      prefixIcon: Icon(Icons.tune_rounded, size: 20),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
+                  const SizedBox(height: 14),
+                  NeumorphicButton(
+                    isAccent: true,
+                    width: double.infinity,
                     onPressed: _loading || _applying
                         ? null
                         : () => _generate(isRegenerate: _proposal != null),
-                    icon: _loading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: _loading
+                        ? const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 10),
+                              Text('Generating...'),
+                            ],
                           )
-                        : const Icon(Icons.auto_fix_high),
-                    label: Text(
-                      _loading
-                          ? 'Generating...'
-                          : (_proposal == null
-                                ? 'Generate improvement'
-                                : 'Regenerate'),
-                    ),
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.auto_fix_high_rounded, size: 17),
+                              const SizedBox(width: 8),
+                              Text(
+                                _proposal == null
+                                    ? 'Generate improvement'
+                                    : 'Regenerate',
+                              ),
+                            ],
+                          ),
                   ),
                   const SizedBox(height: 16),
 
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(
-                        _error!,
-                        style: TextStyle(color: theme.colorScheme.error),
-                      ),
+                      child: ErrorPill(message: _error!),
                     ),
 
                   if (_proposal == null && !_loading && _error == null)
-                    Text(
-                      'Tap Generate improvement to rewrite this task into something more actionable.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.6,
-                        ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 28),
+                      child: Column(
+                        children: [
+                          NeumorphicIconCircle(
+                            icon: Icons.auto_fix_high_outlined,
+                            size: 56,
+                            iconSize: 26,
+                            inset: true,
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Tap Generate improvement to rewrite this task into something more actionable.',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: secondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
 
@@ -364,7 +414,7 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
 
                     if (_proposal!.title != null)
                       _fieldRow(
@@ -506,12 +556,10 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                       Text(
                         'Open AI Assist after applying to add subtasks — improvement only updates the task fields.',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.55,
-                          ),
+                          color: secondary,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       // Display-only suggestions: applying this proposal
                       // updates task fields only — real subtasks are added
                       // afterwards via AI Assist or the subtask list.
@@ -523,9 +571,7 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                               Icon(
                                 Icons.subdirectory_arrow_right,
                                 size: 16,
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.5,
-                                ),
+                                color: secondary.withValues(alpha: 0.6),
                               ),
                               const SizedBox(width: 6),
                               Expanded(
@@ -551,7 +597,7 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
 
             // Footer
             Container(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: theme.dividerColor)),
               ),
@@ -561,7 +607,6 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                     widget.unsavedMode
                         ? 'Preview only'
                         : '$_selectedFieldCount selected',
-                    style: theme.textTheme.bodyMedium,
                   ),
                   const Spacer(),
                   TextButton(
@@ -574,7 +619,8 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                   // Flexible keeps the action button within the leftover
                   // row width so its label can't push the footer out.
                   Flexible(
-                    child: FilledButton(
+                    child: NeumorphicButton(
+                      isAccent: true,
                       onPressed:
                           (_proposal == null ||
                               _loading ||
@@ -583,6 +629,10 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                                   _selectedFieldCount == 0))
                               ? null
                               : _applySelected,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
                       child: Text(
                         _applying
                             ? 'Applying...'
@@ -610,15 +660,16 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
     required ValueChanged<bool> onChanged,
   }) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary = isDark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.dividerColor),
-        ),
+      child: Neumorphic(
+        depth: 3,
+        borderRadius: 14,
+        padding: const EdgeInsets.all(12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -636,9 +687,7 @@ class _AIImproveSheetState extends State<AIImproveSheet> {
                   Text(
                     'Original: $original',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.55,
-                      ),
+                      color: secondary,
                     ),
                   ),
                   const SizedBox(height: 6),

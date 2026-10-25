@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
@@ -407,15 +409,140 @@ class _SegmentOption extends StatelessWidget {
   }
 }
 
-/// Circular Progress Ring with subtle neumorphic track.
+/// Progress arc painted with the brand's indigo → cyan sweep gradient —
+/// the same treatment the web client's ring uses. Drop-in replacement for
+/// an explicit-value `CircularProgressIndicator` (0.0–1.0), with the track
+/// rendered as a soft engraved groove.
+class GradientProgressArc extends StatelessWidget {
+  const GradientProgressArc({
+    super.key,
+    required this.value,
+    this.size = 140,
+    this.strokeWidth = 9,
+    this.trackColor,
+  });
+
+  /// Completion in 0.0–1.0; clamped so a caller can never overflow.
+  final double value;
+  final double size;
+  final double strokeWidth;
+  final Color? trackColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final from = isDark ? AppColors.darkAccent : AppColors.lightAccent;
+    final to = isDark ? AppColors.darkCyan : AppColors.lightCyan;
+    final track =
+        trackColor ??
+        (isDark ? AppColors.darkProgressTrack : AppColors.lightSecondarySurface);
+
+    // Tween between the previous and next value so progress changes
+    // (focus ring ticking, range switches) ease instead of jumping.
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: value.clamp(0.0, 1.0)),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOutCubic,
+      builder: (context, animatedValue, _) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(
+          painter: _GradientArcPainter(
+            value: animatedValue,
+            strokeWidth: strokeWidth,
+            from: from,
+            to: to,
+            track: track,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GradientArcPainter extends CustomPainter {
+  const _GradientArcPainter({
+    required this.value,
+    required this.strokeWidth,
+    required this.from,
+    required this.to,
+    required this.track,
+  });
+
+  final double value;
+  final double strokeWidth;
+  final Color from;
+  final Color to;
+  final Color track;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = (size.shortestSide - strokeWidth) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    // Track first — a soft groove the arc sits inside.
+    canvas.drawArc(
+      rect,
+      -math.pi / 2,
+      math.pi * 2,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..color = track,
+    );
+
+    if (value <= 0) return;
+
+    // The sweep starts at the top (12 o'clock) and eases indigo → cyan
+    // clockwise, matching the web ring's gradient direction.
+    canvas.drawArc(
+      rect,
+      -math.pi / 2,
+      math.pi * 2 * value,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..shader =
+            SweepGradient(
+              startAngle: -math.pi / 2,
+              endAngle: math.pi * 1.5,
+              colors: [from, to],
+              transform: const GradientRotation(-math.pi / 2),
+            ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GradientArcPainter oldDelegate) =>
+      oldDelegate.value != value ||
+      oldDelegate.strokeWidth != strokeWidth ||
+      oldDelegate.from != from ||
+      oldDelegate.to != to ||
+      oldDelegate.track != track;
+}
+
+/// Depth progress ring — the reference-style dashboard centrepiece.
+///
+/// Layered exactly like the web client's `.depth-ring`:
+///  1. a raised disc (upper-left highlight, lower-right shade),
+///  2. an ENGRAVED groove (inset shadows clipped to the well),
+///  3. a track with an indigo→cyan gradient arc wrapped in a soft glow,
+///  4. a glowing cyan head dot at the leading edge of the arc,
+///  5. bold centred text.
+/// The arc eases to its value via [TweenAnimationBuilder].
 class GrivioProgressRing extends StatelessWidget {
   const GrivioProgressRing({
     super.key,
     required this.progress,
     required this.centerText,
     this.subtitleText,
-    this.size = 140,
-    this.strokeWidth = 9,
+    this.size = 148,
+    this.strokeWidth = 13,
   });
 
   final double progress;
@@ -429,66 +556,243 @@ class GrivioProgressRing extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Recessed track background — 4px smaller than the ring so the
-          // track reads as a groove the progress sits inside.
-          Container(
-            width: size - 4,
-            height: size - 4,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isDark
-                  ? AppColors.darkSecondarySurface.withValues(alpha: 0.5)
-                  : AppColors.lightSecondarySurface.withValues(alpha: 0.6),
-            ),
-          ),
-          SizedBox(
-            width: size,
-            height: size,
-            child: CircularProgressIndicator(
-              // Clamped so a caller can never pass <0 or >1 and make the
-              // ring overflow or throw.
-              value: progress.clamp(0.0, 1.0),
-              strokeWidth: strokeWidth,
-              strokeCap: StrokeCap.round,
-              backgroundColor: isDark
-                  ? AppColors.darkProgressTrack
-                  : AppColors.lightSecondarySurface,
-              color: isDark ? AppColors.darkAccent : AppColors.lightAccent,
-            ),
-          ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
+    final surface = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final wellColor = isDark
+        ? AppColors.darkSecondarySurface
+        : AppColors.lightSecondarySurface;
+    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final shadowDark = isDark
+        ? AppColors.darkShadowDark.withValues(alpha: 0.72)
+        : AppColors.lightShadowDark.withValues(alpha: 0.6);
+    final shadowLight = isDark
+        ? AppColors.darkShadowLight.withValues(alpha: 0.4)
+        : AppColors.lightShadowLight.withValues(alpha: 0.95);
+    final from = isDark ? AppColors.darkAccent : AppColors.lightAccent;
+    final to = isDark ? AppColors.darkCyan : AppColors.lightCyan;
+    final track = isDark ? AppColors.darkProgressTrack : AppColors.lightSecondarySurface;
+    final glow = isDark ? AppColors.darkGlowAccent : AppColors.lightGlowAccent;
+    final glowCyan = isDark ? AppColors.darkGlowCyan : AppColors.lightGlowCyan;
+
+    return Semantics(
+      label: 'Progress, $centerText',
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: progress.clamp(0.0, 1.0)),
+          duration: const Duration(milliseconds: 1100),
+          curve: Curves.easeOutCubic,
+          builder: (context, animatedValue, _) => Stack(
+            alignment: Alignment.center,
             children: [
-              Text(
-                centerText,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
+              CustomPaint(
+                size: Size(size, size),
+                painter: _DepthRingPainter(
+                  value: animatedValue,
+                  strokeWidth: strokeWidth,
+                  surface: surface,
+                  wellColor: wellColor,
+                  border: border,
+                  shadowDark: shadowDark,
+                  shadowLight: shadowLight,
+                  from: from,
+                  to: to,
+                  track: track,
+                  glow: glow,
+                  glowCyan: glowCyan,
                 ),
               ),
-              if (subtitleText != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitleText!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isDark
-                        ? AppColors.darkMutedText
-                        : AppColors.lightSecondaryText,
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    centerText,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                ),
-              ],
+                  if (subtitleText != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitleText!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isDark
+                            ? AppColors.darkMutedText
+                            : AppColors.lightSecondaryText,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _DepthRingPainter extends CustomPainter {
+  const _DepthRingPainter({
+    required this.value,
+    required this.strokeWidth,
+    required this.surface,
+    required this.wellColor,
+    required this.border,
+    required this.shadowDark,
+    required this.shadowLight,
+    required this.from,
+    required this.to,
+    required this.track,
+    required this.glow,
+    required this.glowCyan,
+  });
+
+  final double value;
+  final double strokeWidth;
+  final Color surface;
+  final Color wellColor;
+  final Color border;
+  final Color shadowDark;
+  final Color shadowLight;
+  final Color from;
+  final Color to;
+  final Color track;
+  final Color glow;
+  final Color glowCyan;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final outer = size.shortestSide / 2;
+    // The groove sits a stroke's width inside the disc edge.
+    final wellRadius = outer - strokeWidth - 3;
+    final arcRadius = wellRadius - strokeWidth / 2 - 2;
+
+    // ── 1. Raised disc: cast shade bottom-right, highlight top-left ─────────
+    canvas.drawCircle(
+      center + const Offset(4, 5),
+      outer - 2,
+      Paint()
+        ..color = shadowDark
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+    );
+    canvas.drawCircle(
+      center + const Offset(-4, -4),
+      outer - 2,
+      Paint()
+        ..color = shadowLight
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+    );
+    canvas.drawCircle(
+      center,
+      outer - 1,
+      Paint()
+        ..color = surface
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawCircle(
+      center,
+      outer - 1,
+      Paint()
+        ..color = border
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
+    // ── 2. Engraved groove: inset shadows clipped to the well ───────────────
+    canvas.save();
+    canvas.clipPath(Path()..addOval(Rect.fromCircle(center: center, radius: wellRadius)));
+    canvas.drawCircle(
+      center,
+      wellRadius,
+      Paint()..color = wellColor..style = PaintingStyle.fill,
+    );
+    // Dark creeps in from the upper-left rim, light bounces onto the
+    // lower-right rim — the flipped light source that reads as "pressed in".
+    canvas.drawCircle(
+      center + const Offset(-3, -3),
+      wellRadius,
+      Paint()
+        ..color = shadowDark.withValues(alpha: 0.9)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+    );
+    canvas.drawCircle(
+      center + const Offset(3, 3),
+      wellRadius,
+      Paint()
+        ..color = shadowLight.withValues(alpha: 0.5)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    canvas.restore();
+
+    final rect = Rect.fromCircle(center: center, radius: arcRadius);
+
+    // ── 3. Track + glowing gradient arc ─────────────────────────────────────
+    canvas.drawArc(
+      rect,
+      0,
+      math.pi * 2,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..color = track,
+    );
+
+    if (value > 0) {
+      final sweep = math.pi * 2 * value;
+      final arcPath = Path()..addArc(rect, -math.pi / 2, sweep);
+
+      // Soft halo under the crisp arc (the reference's glow).
+      canvas.drawPath(
+        arcPath,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round
+          ..color = glow
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+      );
+      canvas.drawPath(
+        arcPath,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round
+          ..shader =
+              SweepGradient(
+                startAngle: -math.pi / 2,
+                endAngle: math.pi * 1.5,
+                colors: [from, to],
+                transform: const GradientRotation(-math.pi / 2),
+              ).createShader(rect),
+      );
+
+      // ── 4. Glowing head dot at the leading edge ───────────────────────────
+      final angle = -math.pi / 2 + sweep;
+      final head = center + Offset(math.cos(angle), math.sin(angle)) * arcRadius;
+      final headRadius = strokeWidth * 0.34;
+      canvas.drawCircle(
+        head,
+        headRadius * 2.2,
+        Paint()
+          ..color = glowCyan
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
+      canvas.drawCircle(head, headRadius, Paint()..color = to);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DepthRingPainter oldDelegate) =>
+      oldDelegate.value != value ||
+      oldDelegate.strokeWidth != strokeWidth ||
+      oldDelegate.surface != surface ||
+      oldDelegate.from != from ||
+      oldDelegate.to != to;
 }
 
 /// Reusable section title component.
@@ -549,6 +853,258 @@ class SectionLabel extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Selectable tactile chip — a small raised key that settles into an
+/// inset, accent-tinted well when selected (the same geometry the active
+/// nav pill uses). The picker primitive for category, priority and
+/// growth-area choices across the app's forms.
+class NeumorphicChip extends StatelessWidget {
+  const NeumorphicChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.icon,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
+    final idleFg = isDark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
+    final idleBg = isDark
+        ? AppColors.darkSecondarySurface
+        : AppColors.lightSurface;
+    final selectedBg = isDark
+        ? AppColors.darkAccentSurface
+        : AppColors.lightAccentSurface;
+    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            // Selected = pressed *into* the form: inset shadows and the
+            // accent-tinted well; idle = a small raised key.
+            color: selected ? selectedBg : idleBg,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(
+              color: selected
+                  ? accent.withValues(alpha: 0.35)
+                  : border,
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: (isDark
+                              ? AppColors.darkShadowDark
+                              : AppColors.lightShadowDark)
+                          .withValues(alpha: isDark ? 0.5 : 0.45),
+                      offset: const Offset(2, 2),
+                      blurRadius: 4,
+                    ),
+                    BoxShadow(
+                      color: (isDark
+                              ? AppColors.darkShadowLight
+                              : AppColors.lightShadowLight)
+                          .withValues(alpha: isDark ? 0.6 : 0.9),
+                      offset: const Offset(-2, -2),
+                      blurRadius: 3,
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: (isDark
+                              ? AppColors.darkShadowDark
+                              : AppColors.lightShadowDark)
+                          .withValues(alpha: isDark ? 0.45 : 0.4),
+                      offset: const Offset(2, 2),
+                      blurRadius: 4,
+                    ),
+                    BoxShadow(
+                      color: (isDark
+                              ? AppColors.darkShadowLight
+                              : AppColors.lightShadowLight)
+                          .withValues(alpha: isDark ? 0.2 : 0.85),
+                      offset: const Offset(-2, -2),
+                      blurRadius: 4,
+                    ),
+                  ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 15, color: selected ? accent : idleFg),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: selected ? accent : idleFg,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tappable inset row — an engraved well holding an icon, a label (or the
+/// chosen value) and a trailing chevron. The neumorphic stand-in for
+/// "field-shaped" actions such as date pickers.
+class NeumorphicTapRow extends StatelessWidget {
+  const NeumorphicTapRow({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.value,
+  });
+
+  final IconData icon;
+  final String label;
+
+  /// When set, shown instead of [label] — the chosen value.
+  final String? value;
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = isDark ? AppColors.darkAccent : AppColors.lightAccent;
+    final secondary = isDark
+        ? AppColors.darkSecondaryText
+        : AppColors.lightSecondaryText;
+    final hasValue = value != null;
+
+    return Semantics(
+      button: true,
+      label: label,
+      value: value,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Neumorphic(
+          inset: true,
+          depth: 3,
+          borderRadius: AppRadius.md,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: hasValue ? accent : secondary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  value ?? label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 14.5,
+                    fontWeight:
+                        hasValue ? FontWeight.w600 : FontWeight.w500,
+                    color: hasValue
+                        ? (isDark
+                              ? AppColors.darkPrimaryText
+                              : AppColors.lightPrimaryText)
+                        : secondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: secondary.withValues(alpha: 0.7),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Linear progress bar whose fill eases to its new value instead of
+/// snapping — the animated counterpart of [LinearProgressIndicator] with
+/// the brand's indigo→cyan gradient fill on a recessed track.
+class AnimatedProgressBar extends StatelessWidget {
+  const AnimatedProgressBar({
+    super.key,
+    required this.value,
+    this.height = 8,
+    this.trackColor,
+    this.color,
+  });
+
+  /// 0.0–1.0; clamped so a caller can never overflow.
+  final double value;
+
+  final double height;
+  final Color? trackColor;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final from = color ?? (isDark ? AppColors.darkAccent : AppColors.lightAccent);
+    final to = isDark ? AppColors.darkCyan : AppColors.lightCyan;
+    final track = trackColor ??
+        (isDark
+            ? AppColors.darkProgressTrack
+            : AppColors.lightSecondarySurface);
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: value.clamp(0.0, 1.0)),
+      duration: const Duration(milliseconds: 800),
+      curve: Curves.easeOutCubic,
+      builder: (context, v, _) => ClipRRect(
+        borderRadius: BorderRadius.circular(height / 2),
+        child: SizedBox(
+          height: height,
+          child: Stack(
+            children: [
+              ColoredBox(color: track, child: const SizedBox.expand()),
+              FractionallySizedBox(
+                widthFactor: v,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [from, to]),
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

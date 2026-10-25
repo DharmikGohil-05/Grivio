@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- GRIVIO mark: neumorphic rounded tile, indigo→cyan brand gradient,
+       white trending-up growth arrow (the app's core promise). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5865D9"/>
+      <stop offset="1" stop-color="#42BFC4"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g stroke="#FFFFFF" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <polyline points="453.3,149.3 288,330.7 181.3,224 42.7,362.7"/>
+    <polyline points="341.3,149.3 469.3,149.3 469.3,277.3"/>
+  </g>
+</svg>

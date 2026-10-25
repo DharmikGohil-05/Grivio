@@ -270,6 +270,10 @@ class DailyPlan {
   /// Notes the backend attaches to the plan; parsed defensively as
   /// strings (the planner screen does not currently render them).
   final List<String> warnings;
+  /// Task proposals from the AI when the user has no open tasks — a
+  /// preview only; nothing exists until the user picks items and they are
+  /// created through the normal task endpoint.
+  final List<SuggestedTask> suggestedTasks;
 
   const DailyPlan({
     required this.date,
@@ -285,6 +289,7 @@ class DailyPlan {
     required this.unscheduled,
     required this.breaks,
     required this.warnings,
+    this.suggestedTasks = const [],
   });
 
   factory DailyPlan.fromJson(Map<String, dynamic> j) => DailyPlan(
@@ -312,7 +317,38 @@ class DailyPlan {
     warnings: ((j['warnings'] as List?) ?? const [])
         .map((e) => e.toString())
         .toList(),
+    // Present only when the user had no tasks and the AI proposed some;
+    // malformed entries are dropped rather than trusted.
+    suggestedTasks: ((j['suggestedTasks'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(SuggestedTask.fromJson)
+        .where((t) => t.title.isNotEmpty)
+        .toList(),
   );
+}
+
+/// A task the AI proposes when the user has nothing to schedule — never
+/// persisted until the user accepts it.
+class SuggestedTask {
+  final String title;
+  final int minutes;
+  final String priority; // 'low' | 'medium' | 'high'
+
+  const SuggestedTask({
+    required this.title,
+    required this.minutes,
+    required this.priority,
+  });
+
+  factory SuggestedTask.fromJson(Map<String, dynamic> j) {
+    const allowed = ['low', 'medium', 'high'];
+    final priority = j['priority'] as String?;
+    return SuggestedTask(
+      title: (j['title'] as String? ?? '').trim(),
+      minutes: (j['minutes'] as num?)?.toInt() ?? 0,
+      priority: allowed.contains(priority) ? priority! : 'medium',
+    );
+  }
 }
 
 /// A field-level improvement proposal — only fields the model returned.

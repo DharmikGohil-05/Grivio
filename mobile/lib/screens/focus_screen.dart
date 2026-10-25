@@ -7,6 +7,7 @@ import '../services/api_client.dart';
 import '../services/auth_storage.dart';
 import '../services/focus_service.dart';
 import '../services/task_service.dart';
+import '../widgets/neumorphic.dart';
 
 /// Focus screen — calm, distraction-free timer with neumorphic depth.
 /// Timer accuracy comes from server timestamps; the UI ticks once a
@@ -303,20 +304,15 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        SizedBox(
-                          width: 200,
-                          height: 200,
-                          child: CircularProgressIndicator(
-                            value: _session == null ? 0.0 : progress,
-                            strokeWidth: 8,
-                            strokeCap: StrokeCap.round,
-                            backgroundColor: isDark
-                                ? AppColors.darkProgressTrack
-                                : AppColors.lightSecondarySurface,
-                            color: isDark
-                                ? AppColors.darkAccent
-                                : AppColors.lightAccent,
-                          ),
+                        // Indigo → cyan gradient arc — the brand progress
+                        // treatment, shared with the home ring and web.
+                        GradientProgressArc(
+                          value: _session == null ? 0.0 : progress,
+                          size: 200,
+                          strokeWidth: 8,
+                          trackColor: isDark
+                              ? AppColors.darkProgressTrack
+                              : AppColors.lightSecondarySurface,
                         ),
                         Column(
                           mainAxisSize: MainAxisSize.min,
